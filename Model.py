@@ -1,7 +1,7 @@
 import torch.nn.functional as F
 from torch import nn
 from torch_geometric.nn import GCNConv, global_mean_pool
-from transformers import AutoModel
+from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer
 
 
 class GraphEncoder(nn.Module):
@@ -41,6 +41,19 @@ class TextEncoder(nn.Module):
         encoded_text = self.bert(input_ids, attention_mask=attention_mask)
         # print(encoded_text.last_hidden_state.size())
         return encoded_text.last_hidden_state[:, 0, :]
+
+
+class BiomedBERTEncoder(nn.Module):
+    def __init__(self, model_name):
+        super(BiomedBERTEncoder, self).__init__()
+        self.bert = AutoModelForMaskedLM.from_pretrained(
+            "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
+        )
+
+    def forward(self, input_ids, attention_mask):
+        encoded_text = self.bert(input_ids, attention_mask=attention_mask)
+        # print(encoded_text.last_hidden_state.size())
+        return encoded_text.logits[:, 0, :]
 
 
 class Model(nn.Module):

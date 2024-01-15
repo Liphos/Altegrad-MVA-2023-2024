@@ -8,6 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from torch import optim
 from torch.utils.data import DataLoader as TorchDataLoader
 from torch_geometric.data import DataLoader
+from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from dataloader import GraphDataset, GraphTextInMDataset, TextDataset
@@ -34,7 +35,7 @@ train_dataset = GraphTextInMDataset(
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("device: ", device)
-nb_epochs = 5
+nb_epochs = -1
 batch_size = 16
 learning_rate = 2e-5
 
@@ -59,10 +60,10 @@ loss = 0
 losses = []
 count_iter = 0
 time1 = time.time()
-printEvery = 1
+printEvery = 50
 best_validation_loss = 1000000
 
-for i in range(nb_epochs):
+for i in tqdm(range(nb_epochs)):
     print(f"-----EPOCH{i + 1}-----")
     model.train()
     for batch in train_loader:

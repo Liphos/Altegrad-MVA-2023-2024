@@ -1,6 +1,8 @@
 #Ignore data
 data/*
 *.csv
+send_data_dgx.sh
+*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
