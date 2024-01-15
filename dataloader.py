@@ -259,7 +259,12 @@ class GraphDataset(Dataset):
     def process(self):
         i = 0
         for raw_path in self.raw_paths:
-            cid = int(raw_path.split("/")[-1][:-6])
+            try:
+                # On linux
+                cid = int(raw_path.split("/")[-1][:-6])
+            except:
+                # On windows
+                cid = int(raw_path.split("\\")[-1][:-6])
             edge_index, x = self.process_graph(raw_path)
             data = Data(x=x, edge_index=edge_index)
             torch.save(data, osp.join(self.processed_dir, "data_{}.pt".format(cid)))

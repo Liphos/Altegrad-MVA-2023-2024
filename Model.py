@@ -1,4 +1,3 @@
-import torch.nn.functional as F
 from torch import nn
 from torch_geometric.nn import GCNConv, global_mean_pool
 from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer
@@ -76,3 +75,16 @@ class Model(nn.Module):
 
     def get_graph_encoder(self):
         return self.graph_encoder
+
+
+def get_model(model_name):
+    if model_name == "distilbert-base-uncased":
+        return Model(
+            model_name=model_name,
+            num_node_features=300,
+            nout=768,
+            nhid=300,
+            graph_hidden_channels=300,
+        )
+    else:
+        raise NotImplementedError
