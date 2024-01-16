@@ -11,6 +11,7 @@ class GraphTextDataset(Dataset):
     def __init__(
         self, root, gt, split, tokenizer=None, transform=None, pre_transform=None
     ):
+        self.tokenizer_name = type(tokenizer).__name__
         self.root = root
         self.gt = gt
         self.split = split
@@ -42,7 +43,7 @@ class GraphTextDataset(Dataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, "processed/", self.split)
+        return osp.join(self.root, f"processed_{self.tokenizer_name}/", self.split)
 
     def download(self):
         pass
@@ -111,8 +112,15 @@ class GraphTextDataset(Dataset):
 
 class GraphTextInMDataset(InMemoryDataset):
     def __init__(
-        self, root, gt, split, tokenizer=None, transform=None, pre_transform=None
+        self,
+        root,
+        gt,
+        split,
+        tokenizer=None,
+        transform=None,
+        pre_transform=None,
     ):
+        self.tokenizer_name = type(tokenizer).__name__
         self.root = root
         self.gt = gt
         self.split = split
@@ -145,7 +153,7 @@ class GraphTextInMDataset(InMemoryDataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, "processed/", self.split)
+        return osp.join(self.root, f"processed_{self.tokenizer_name}/", self.split)
 
     def download(self):
         pass
@@ -201,7 +209,10 @@ class GraphTextInMDataset(InMemoryDataset):
 
 
 class GraphDataset(Dataset):
-    def __init__(self, root, gt, split, transform=None, pre_transform=None):
+    def __init__(
+        self, root, gt, split, tokenizer=None, transform=None, pre_transform=None
+    ):
+        self.tokenizer_name = type(tokenizer).__name__
         self.root = root
         self.gt = gt
         self.split = split
@@ -231,7 +242,7 @@ class GraphDataset(Dataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, "processed/", self.split)
+        return osp.join(self.root, f"processed_{self.tokenizer_name}/", self.split)
 
     def download(self):
         pass
@@ -288,7 +299,8 @@ class GraphDataset(Dataset):
 
 
 class GraphDatasetInM(InMemoryDataset):
-    def __init__(self, root, gt, split, transform=None, pre_transform=None):
+    def __init__(self, root, gt, split, tokenizer=None, transform=None, pre_transform=None):
+        self.tokenizer_name = type(tokenizer).__name__
         self.root = root
         self.gt = gt
         self.split = split
@@ -319,7 +331,7 @@ class GraphDatasetInM(InMemoryDataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, "processed/", self.split)
+        return osp.join(self.root, f"processed_{self.tokenizer_name}/", self.split)
 
     def download(self):
         pass

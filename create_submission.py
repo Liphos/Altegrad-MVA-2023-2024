@@ -10,13 +10,14 @@ from torch.utils.data import DataLoader as TorchDataLoader
 from torch_geometric.data import DataLoader
 
 from dataloader import GraphDatasetInM, TextDataset
-from Model import get_model
-from tools import load_tokenizer
+from Model import get_model, load_tokenizer
 
 
 def load_dataset(tokenizer):
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
-    test_cids_dataset = GraphDatasetInM(root="./data/", gt=gt, split="test_cids")
+    test_cids_dataset = GraphDatasetInM(
+        root="./data/", gt=gt, split="test_cids", tokenizer=tokenizer
+    )
     test_text_dataset = TextDataset(
         file_path="./data/test_text.txt", tokenizer=tokenizer
     )
@@ -41,20 +42,19 @@ if __name__ == "__main__":
     )
     config_model = config["model"]
     hyperparameters = config["hyperparameters"]
+
+    tokenizer = load_tokenizer(config_model["model_name"])
+    test_cids_dataset, test_text_dataset = load_dataset(tokenizer)
+    idx_to_cid = test_cids_dataset.get_idx_to_cid()
     print("loading last model...")
     checkpoint = torch.load(os.path.join(load_folder, "last_model.pt"))
 
     model = get_model(config_model["model_name"]).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
-    tokenizer = load_tokenizer(config_model["model_name"])
 
     graph_model = model.get_graph_encoder()
     text_model = model.get_text_encoder()
-
-    test_cids_dataset, test_text_dataset = load_dataset(tokenizer)
-
-    idx_to_cid = test_cids_dataset.get_idx_to_cid()
 
     test_loader = DataLoader(
         test_cids_dataset, batch_size=hyperparameters["batch_size"], shuffle=False

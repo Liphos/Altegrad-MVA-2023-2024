@@ -73,7 +73,10 @@ def get_model(model_name):
             nhid=300,
             graph_hidden_channels=300,
         )
-    elif model_name == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext":
+    elif (
+        model_name == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
+        or model_name == "nlpie/distil-biobert"
+    ):
         return Model(
             model_name=model_name,
             num_node_features=300,

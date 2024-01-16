@@ -1,5 +1,5 @@
 model:
-  model_name: "distilbert-base-uncased"
+  model_name: "nlpie/distil-biobert"
 hyperparameters:
   nb_epochs: 100
   batch_size: 64
