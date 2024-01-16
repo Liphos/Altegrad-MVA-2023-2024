@@ -16,6 +16,9 @@ from transformers import AutoTokenizer
 from dataloader import GraphTextInMDataset
 from Model import get_model, load_tokenizer
 
+from sklearn.metrics import label_ranking_average_precision_score
+from sklearn.metrics.pairwise import cosine_similarity
+
 CE = torch.nn.CrossEntropyLoss()
 
 
@@ -99,10 +102,14 @@ if __name__ == "__main__":
     time1 = time.time()
     best_validation_loss = np.inf
 
+    print("Start training...")
+    train = False
     for i in tqdm(range(hyperparameters["nb_epochs"])):
         logging.info(f"-----EPOCH{i + 1}-----")
         model.train()
-        for batch in train_loader:
+
+        j = 0
+        for batch in tqdm(train_loader):
             input_ids, attention_mask, graph_batch = prepare_graph_batch(batch)
 
             x_graph, x_text = model(
@@ -124,8 +131,19 @@ if __name__ == "__main__":
                 )
                 losses.append(loss)
                 loss = 0
+
+            j += 1
+            if j == 5:
+                break
+
+
         model.eval()
         val_loss = 0
+
+        text_embeddings = []
+        graph_embeddings = []
+
+        j = 0
         for batch in val_loader:
             input_ids, attention_mask, graph_batch = prepare_graph_batch(batch)
             x_graph, x_text = model(
@@ -133,12 +151,34 @@ if __name__ == "__main__":
             )
             current_loss = contrastive_loss(x_graph, x_text)
             val_loss += current_loss.item()
+
+            text_embeddings.append(x_text.tolist())
+            graph_embeddings.append(x_graph.tolist())
+
+            j += 1
+            if j == 2:
+                break
+
+        text_embeddings = np.concatenate(text_embeddings)
+        graph_embeddings = np.concatenate(graph_embeddings)
+        similarity = cosine_similarity(text_embeddings, graph_embeddings)
+
+        y_true = np.zeros(similarity.shape)
+        for i in range(similarity.shape[0]):
+            y_true[i, i] = 1
+
+        score = label_ranking_average_precision_score(y_true, similarity)
+        logging.info(f"validation score: {score:.4f}")
+        print(f"validation score: {score:.4f}")
+
+
         logging.info(
             f"-----EPOCH + {i+1} + ----- done.  Validation loss: {val_loss / len(val_loader):.4f}"
         )
+
         if best_validation_loss > val_loss:
             best_validation_loss = val_loss
-            logging.info("validation loss improoved saving checkpoint...")
+            logging.info("validation loss improved saving checkpoint...")
             save_path = os.path.join(output_path, "model" + str(i) + ".pt")
             torch.save(
                 {

@@ -1,7 +1,7 @@
 model:
   model_name: "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
 hyperparameters:
-  nb_epochs: 1
+  nb_epochs: 10
   batch_size: 16
   learning_rate: 2.e-5
 debug:
