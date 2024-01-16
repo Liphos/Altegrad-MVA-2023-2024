@@ -14,8 +14,7 @@ from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from dataloader import GraphTextInMDataset
-from Model import get_model
-from tools import load_tokenizer
+from Model import get_model, load_tokenizer
 
 CE = torch.nn.CrossEntropyLoss()
 

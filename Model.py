@@ -86,6 +86,14 @@ def get_model(model_name):
             nhid=300,
             graph_hidden_channels=300,
         )
+    elif model_name == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext":
+        return Model(
+            model_name=model_name,
+            num_node_features=300,
+            nout=30522,
+            nhid=300,
+            graph_hidden_channels=300,
+        )
     else:
         raise NotImplementedError
 
@@ -93,7 +101,11 @@ def get_model(model_name):
 def get_text_encoder(model_name):
     if model_name == "distilbert-base-uncased":
         return TextEncoder(model_name)
-    elif model_name == "BiomedBERT":
+    elif model_name == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext":
         return BiomedBERTEncoder()
     else:
         raise NotImplementedError
+
+
+def load_tokenizer(model_name):
+    return AutoTokenizer.from_pretrained(model_name)

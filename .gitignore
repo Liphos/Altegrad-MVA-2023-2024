@@ -3,6 +3,7 @@ data/*
 *.csv
 send_data_dgx.sh
 *.pt
+outputs/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

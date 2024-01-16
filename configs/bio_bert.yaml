@@ -1,5 +1,5 @@
 model:
-  model_name: "distilbert-base-uncased"
+  model_name: "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
 hyperparameters:
   nb_epochs: 1
   batch_size: 16
