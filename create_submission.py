@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from torch.utils.data import DataLoader as TorchDataLoader
 from torch_geometric.data import DataLoader
 
-from dataloader import GraphDataset, GraphTextInMDataset, TextDataset
+from dataloader import GraphDataset, TextDataset
 from Model import get_model
 from tools import load_tokenizer
 
