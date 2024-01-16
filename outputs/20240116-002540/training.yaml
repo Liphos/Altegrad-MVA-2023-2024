@@ -1,8 +1,0 @@
-model:
-  model_name: "distilbert-base-uncased"
-hyperparameters:
-  nb_epochs: 1
-  batch_size: 16
-  learning_rate: 2.e-5
-debug:
-  print_every: 50

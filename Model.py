@@ -42,19 +42,6 @@ class TextEncoder(nn.Module):
         return encoded_text.last_hidden_state[:, 0, :]
 
 
-class BiomedBERTEncoder(nn.Module):
-    def __init__(self):
-        super(BiomedBERTEncoder, self).__init__()
-        self.bert = AutoModelForMaskedLM.from_pretrained(
-            "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
-        )
-
-    def forward(self, input_ids, attention_mask):
-        encoded_text = self.bert(input_ids, attention_mask=attention_mask)
-        # print(encoded_text.last_hidden_state.size())
-        return encoded_text.logits[:, 0, :]
-
-
 class Model(nn.Module):
     def __init__(
         self, model_name, num_node_features, nout, nhid, graph_hidden_channels
@@ -63,7 +50,7 @@ class Model(nn.Module):
         self.graph_encoder = GraphEncoder(
             num_node_features, nout, nhid, graph_hidden_channels
         )
-        self.text_encoder = get_text_encoder(model_name)
+        self.text_encoder = TextEncoder(model_name)
 
     def forward(self, graph_batch, input_ids, attention_mask):
         graph_encoded = self.graph_encoder(graph_batch)
@@ -90,19 +77,10 @@ def get_model(model_name):
         return Model(
             model_name=model_name,
             num_node_features=300,
-            nout=30522,
+            nout=768,
             nhid=300,
             graph_hidden_channels=300,
         )
-    else:
-        raise NotImplementedError
-
-
-def get_text_encoder(model_name):
-    if model_name == "distilbert-base-uncased":
-        return TextEncoder(model_name)
-    elif model_name == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext":
-        return BiomedBERTEncoder()
     else:
         raise NotImplementedError
 

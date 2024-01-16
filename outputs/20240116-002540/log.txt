@@ -1,4 +1,0 @@
-2024-01-16 00:25:40,198 - -----EPOCH1-----
-2024-01-16 00:26:46,106 - -----EPOCH + 1 + ----- done.  Validation loss: 5.5382
-2024-01-16 00:26:46,106 - validation loss improoved saving checkpoint...
-2024-01-16 00:26:46,639 - checkpoint saved to: ./outputs/20240116-002540/model0.pt
