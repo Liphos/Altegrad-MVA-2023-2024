@@ -5,5 +5,5 @@ python create_submission
 
 J'ai pas encore fait la métrique et le test mais ça va se faire
 
-TODO:
-Make other loaders into InMemory
+J'ai rajouté un batch script pour créer les submissions plus facilement.
+Il te suffit de prendre un dossier d'une expérience et de le drag and drop sur le bat file

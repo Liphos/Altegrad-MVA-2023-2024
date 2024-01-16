@@ -1,3 +1,6 @@
+import argparse
+import os
+
 import numpy as np
 import pandas as pd
 import torch
@@ -6,14 +9,14 @@ from sklearn.metrics.pairwise import cosine_similarity
 from torch.utils.data import DataLoader as TorchDataLoader
 from torch_geometric.data import DataLoader
 
-from dataloader import GraphDataset, TextDataset
+from dataloader import GraphDatasetInM, TextDataset
 from Model import get_model
 from tools import load_tokenizer
 
 
 def load_dataset(tokenizer):
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
-    test_cids_dataset = GraphDataset(root="./data/", gt=gt, split="test_cids")
+    test_cids_dataset = GraphDatasetInM(root="./data/", gt=gt, split="test_cids")
     test_text_dataset = TextDataset(
         file_path="./data/test_text.txt", tokenizer=tokenizer
     )
@@ -21,16 +24,25 @@ def load_dataset(tokenizer):
 
 
 if __name__ == "__main__":
-    load_folder = "./outputs/20240116-002540/"
+    parser = argparse.ArgumentParser(
+        prog="Create Submission",
+        description="Create submission from the folder of experiment",
+        epilog="have to provide a correct folder",
+    )
+    parser.add_argument("output_folder", help="path to the experiment folder")
+    args = parser.parse_args()
+    load_folder = args.output_folder
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # load model
-    config = yaml.safe_load(open(load_folder + "training.yaml", "r", encoding="utf-8"))
+    config = yaml.safe_load(
+        open(os.path.join(load_folder, "training.yaml"), "r", encoding="utf-8")
+    )
     config_model = config["model"]
     hyperparameters = config["hyperparameters"]
-    print("loading best model...")
-    checkpoint = torch.load(load_folder + "last_model.pt")
+    print("loading last model...")
+    checkpoint = torch.load(os.path.join(load_folder, "last_model.pt"))
 
     model = get_model(config_model["model_name"]).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
