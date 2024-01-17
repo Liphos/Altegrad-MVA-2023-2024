@@ -1,5 +1,6 @@
 model:
   model_name: "BiomedBERT"
+  gnn_type: "gin"
 hyperparameters:
   nb_epochs: 1
   batch_size: 16

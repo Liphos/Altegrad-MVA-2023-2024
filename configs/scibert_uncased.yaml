@@ -1,5 +1,5 @@
 model:
-  model_name: "nlpie/distil-biobert" #"distilbert-base-uncased"
+  model_name: "allenai/scibert_scivocab_uncased"
   gnn_type: "gin"
 hyperparameters:
   nb_epochs: 10

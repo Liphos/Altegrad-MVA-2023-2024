@@ -69,7 +69,7 @@ if __name__ == "__main__":
         tokenizer=tokenizer, model_name=model_config["model_name"]
     )
 
-    model = get_model(model_config["model_name"])
+    model = get_model(model_config["model_name"], model_config["gnn_type"])
     model.to(device)
 
     optimizer = optim.AdamW(

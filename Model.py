@@ -1,18 +1,42 @@
+import torch
 from torch import nn
-from torch_geometric.nn import GCNConv, global_mean_pool
+from torch_geometric.nn import GCNConv, GINConv, global_mean_pool
 from transformers import AutoModel, AutoTokenizer
 
 
+def create_mlp_gin(input_dim, output_dim):
+    return torch.nn.Sequential(
+        torch.nn.Linear(input_dim, 2 * output_dim),
+        torch.nn.ReLU(),
+        torch.nn.Linear(2 * output_dim, output_dim),
+    )
+
+
 class GraphEncoder(nn.Module):
-    def __init__(self, num_node_features, nout, nhid, graph_hidden_channels):
+    def __init__(
+        self, num_node_features, nout, nhid, graph_hidden_channels, gnn_type="gin"
+    ):
         super(GraphEncoder, self).__init__()
         self.nhid = nhid
         self.nout = nout
         self.relu = nn.ReLU()
         self.ln = nn.LayerNorm((nout))
-        self.conv1 = GCNConv(num_node_features, graph_hidden_channels)
-        self.conv2 = GCNConv(graph_hidden_channels, graph_hidden_channels)
-        self.conv3 = GCNConv(graph_hidden_channels, graph_hidden_channels)
+        if gnn_type == "gin":
+            self.conv1 = GINConv(
+                create_mlp_gin(num_node_features, graph_hidden_channels)
+            )
+            self.conv2 = GINConv(
+                create_mlp_gin(graph_hidden_channels, graph_hidden_channels)
+            )
+            self.conv3 = GINConv(
+                create_mlp_gin(graph_hidden_channels, graph_hidden_channels)
+            )
+        elif gnn_type == "gcn":
+            self.conv1 = GCNConv(num_node_features, graph_hidden_channels)
+            self.conv2 = GCNConv(graph_hidden_channels, graph_hidden_channels)
+            self.conv3 = GCNConv(graph_hidden_channels, graph_hidden_channels)
+        else:
+            raise NotImplementedError
         self.mol_hidden1 = nn.Linear(graph_hidden_channels, nhid)
         self.mol_hidden2 = nn.Linear(nhid, nout)
 
@@ -44,11 +68,11 @@ class TextEncoder(nn.Module):
 
 class Model(nn.Module):
     def __init__(
-        self, model_name, num_node_features, nout, nhid, graph_hidden_channels
+        self, model_name, num_node_features, nout, nhid, graph_hidden_channels, gnn_type
     ):
         super(Model, self).__init__()
         self.graph_encoder = GraphEncoder(
-            num_node_features, nout, nhid, graph_hidden_channels
+            num_node_features, nout, nhid, graph_hidden_channels, gnn_type=gnn_type
         )
         self.text_encoder = TextEncoder(model_name)
 
@@ -64,28 +88,15 @@ class Model(nn.Module):
         return self.graph_encoder
 
 
-def get_model(model_name):
-    if model_name == "distilbert-base-uncased":
-        return Model(
-            model_name=model_name,
-            num_node_features=300,
-            nout=768,
-            nhid=300,
-            graph_hidden_channels=300,
-        )
-    elif (
-        model_name == "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
-        or model_name == "nlpie/distil-biobert"
-    ):
-        return Model(
-            model_name=model_name,
-            num_node_features=300,
-            nout=768,
-            nhid=300,
-            graph_hidden_channels=300,
-        )
-    else:
-        raise NotImplementedError
+def get_model(model_name, gnn_type):
+    return Model(
+        model_name=model_name,
+        num_node_features=300,
+        nout=768,
+        nhid=300,
+        graph_hidden_channels=300,
+        gnn_type=gnn_type,
+    )
 
 
 def load_tokenizer(model_name):

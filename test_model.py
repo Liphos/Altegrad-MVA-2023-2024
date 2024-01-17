@@ -70,7 +70,7 @@ if __name__ == "__main__":
     )
     checkpoint = torch.load(os.path.join(load_folder, "last_model.pt"))
 
-    model = get_model(model_config["model_name"]).to(device)
+    model = get_model(model_config["model_name"], model_config["gnn_type"]).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 
