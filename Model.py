@@ -1,6 +1,6 @@
 from torch import nn
 from torch_geometric.nn import GCNConv, global_mean_pool
-from transformers import AutoModel, AutoModelForMaskedLM, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
 
 
 class GraphEncoder(nn.Module):

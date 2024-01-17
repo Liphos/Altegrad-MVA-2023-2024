@@ -8,6 +8,8 @@ import time
 import numpy as np
 import torch
 import yaml
+from sklearn.metrics import label_ranking_average_precision_score
+from sklearn.metrics.pairwise import cosine_similarity
 from torch import optim
 from torch_geometric.data import DataLoader
 from tqdm import tqdm
@@ -15,9 +17,6 @@ from transformers import AutoTokenizer
 
 from dataloader import GraphTextInMDataset
 from Model import get_model, load_tokenizer
-
-from sklearn.metrics import label_ranking_average_precision_score
-from sklearn.metrics.pairwise import cosine_similarity
 
 CE = torch.nn.CrossEntropyLoss()
 
@@ -66,7 +65,9 @@ if __name__ == "__main__":
 
     # Load model and datasets
     tokenizer = load_tokenizer(model_config["model_name"])
-    val_dataset, train_dataset = load_datasets(tokenizer=tokenizer, model_name=model_config["model_name"])
+    val_dataset, train_dataset = load_datasets(
+        tokenizer=tokenizer, model_name=model_config["model_name"]
+    )
 
     model = get_model(model_config["model_name"])
     model.to(device)
@@ -136,7 +137,6 @@ if __name__ == "__main__":
             if j == 120:
                 break
 
-
         model.eval()
         val_loss = 0
 
@@ -163,14 +163,11 @@ if __name__ == "__main__":
         graph_embeddings = np.concatenate(graph_embeddings)
         similarity = cosine_similarity(text_embeddings, graph_embeddings)
 
-        y_true = np.zeros(similarity.shape)
-        for i in range(similarity.shape[0]):
-            y_true[i, i] = 1
+        y_true = np.diag(np.ones(similarity.shape[0]))
 
         score = label_ranking_average_precision_score(y_true, similarity)
         logging.info(f"validation score: {score:.4f}")
         print(f"validation score: {score:.4f}")
-
 
         logging.info(
             f"-----EPOCH + {i+1} + ----- done.  Validation loss: {val_loss / len(val_loader):.4f}"
