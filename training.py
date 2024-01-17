@@ -28,13 +28,13 @@ def contrastive_loss(v1, v2):
     return CE(logits, labels) + CE(torch.transpose(logits, 0, 1), labels)
 
 
-def load_datasets(tokenizer: AutoTokenizer):
+def load_datasets(tokenizer: AutoTokenizer, model_name: str):
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
     val_dataset = GraphTextInMDataset(
-        root="./data/", gt=gt, split="val", tokenizer=tokenizer
+        root="./data/", gt=gt, split="val", tokenizer=tokenizer, model_name=model_name
     )
     train_dataset = GraphTextInMDataset(
-        root="./data/", gt=gt, split="train", tokenizer=tokenizer
+        root="./data/", gt=gt, split="train", tokenizer=tokenizer, model_name=model_name
     )
     return val_dataset, train_dataset
 
@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     # Load model and datasets
     tokenizer = load_tokenizer(model_config["model_name"])
-    val_dataset, train_dataset = load_datasets(tokenizer=tokenizer)
+    val_dataset, train_dataset = load_datasets(tokenizer=tokenizer, model_name=model_config["model_name"])
 
     model = get_model(model_config["model_name"])
     model.to(device)
@@ -133,7 +133,7 @@ if __name__ == "__main__":
                 loss = 0
 
             j += 1
-            if j == 5:
+            if j == 120:
                 break
 
 
@@ -156,7 +156,7 @@ if __name__ == "__main__":
             graph_embeddings.append(x_graph.tolist())
 
             j += 1
-            if j == 2:
+            if j == 50:
                 break
 
         text_embeddings = np.concatenate(text_embeddings)

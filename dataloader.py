@@ -119,8 +119,10 @@ class GraphTextInMDataset(InMemoryDataset):
         tokenizer=None,
         transform=None,
         pre_transform=None,
+        model_name=None,
     ):
         self.tokenizer_name = type(tokenizer).__name__
+        self.model_name = model_name
         self.root = root
         self.gt = gt
         self.split = split
@@ -153,7 +155,7 @@ class GraphTextInMDataset(InMemoryDataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f"processed_{self.tokenizer_name}/", self.split)
+        return osp.join(self.root, f"processed_{self.model_name}/", self.split)
 
     def download(self):
         pass
@@ -210,9 +212,10 @@ class GraphTextInMDataset(InMemoryDataset):
 
 class GraphDataset(Dataset):
     def __init__(
-        self, root, gt, split, tokenizer=None, transform=None, pre_transform=None
+        self, root, gt, split, tokenizer=None, transform=None, pre_transform=None, model_name=None
     ):
         self.tokenizer_name = type(tokenizer).__name__
+        self.model_name = model_name
         self.root = root
         self.gt = gt
         self.split = split
@@ -242,7 +245,7 @@ class GraphDataset(Dataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f"processed_{self.tokenizer_name}/", self.split)
+        return osp.join(self.root, f"processed_{self.model_name}/", self.split)
 
     def download(self):
         pass
@@ -299,8 +302,9 @@ class GraphDataset(Dataset):
 
 
 class GraphDatasetInM(InMemoryDataset):
-    def __init__(self, root, gt, split, tokenizer=None, transform=None, pre_transform=None):
+    def __init__(self, root, gt, split, tokenizer=None, transform=None, pre_transform=None, model_name=None):
         self.tokenizer_name = type(tokenizer).__name__
+        self.model_name = model_name
         self.root = root
         self.gt = gt
         self.split = split
@@ -331,7 +335,7 @@ class GraphDatasetInM(InMemoryDataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f"processed_{self.tokenizer_name}/", self.split)
+        return osp.join(self.root, f"processed_{self.model_name}/", self.split)
 
     def download(self):
         pass
