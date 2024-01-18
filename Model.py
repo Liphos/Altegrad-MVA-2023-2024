@@ -48,6 +48,21 @@ class GraphEncoder(nn.Module):
         self.mol_hidden1 = nn.Linear(graph_hidden_channels, nhid)
         self.mol_hidden2 = nn.Linear(nhid, nout)
 
+    def forward_gnn(self, graph_batch):
+        x = graph_batch.x
+        edge_index = graph_batch.edge_index
+        batch = graph_batch.batch
+        x = self.conv1(x, edge_index)
+        x = x.relu()
+        x = self.conv2(x, edge_index)
+        x = x.relu()
+        x = self.conv3(x, edge_index)
+        x = x.relu()
+        x = self.conv4(x, edge_index)
+        x = x.relu()
+        x = self.conv5(x, edge_index)
+        return x
+
     def forward(self, graph_batch):
         x = graph_batch.x
         edge_index = graph_batch.edge_index

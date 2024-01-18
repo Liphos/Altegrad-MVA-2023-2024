@@ -212,7 +212,14 @@ class GraphTextInMDataset(InMemoryDataset):
 
 class GraphDataset(Dataset):
     def __init__(
-        self, root, gt, split, tokenizer=None, transform=None, pre_transform=None, model_name=None
+        self,
+        root,
+        gt,
+        split,
+        tokenizer=None,
+        transform=None,
+        pre_transform=None,
+        model_name=None,
     ):
         self.tokenizer_name = type(tokenizer).__name__
         self.model_name = model_name
@@ -301,9 +308,80 @@ class GraphDataset(Dataset):
         return self.idx_to_cid
 
 
+class AllGraphDataset(InMemoryDataset):
+    def __init__(self, root, gt, transform=None, pre_transform=None):
+        self.root = root
+        self.gt = gt
+        super(AllGraphDataset, self).__init__(root, transform, pre_transform)
+        self.load(self.processed_paths[0])
+
+    @property
+    def raw_file_names(self):
+        return [file for file in os.listdir(self.raw_dir) if file.endswith(".graph")]
+
+    @property
+    def processed_file_names(self):
+        return ["data.pt"]
+
+    @property
+    def raw_dir(self) -> str:
+        return osp.join(self.root, "raw")
+
+    @property
+    def processed_dir(self) -> str:
+        return osp.join(self.root, f"processed_allgraphs")
+
+    def download(self):
+        pass
+
+    def process_graph(self, raw_path):
+        edge_index = []
+        x = []
+        with open(raw_path, "r") as f:
+            next(f)
+            for line in f:
+                if line != "\n":
+                    edge = (*map(int, line.split()),)
+                    edge_index.append(edge)
+                else:
+                    break
+            next(f)
+            for line in f:
+                substruct_id = line.strip().split()[-1]
+                if substruct_id in self.gt.keys():
+                    x.append(self.gt[substruct_id])
+                else:
+                    x.append(self.gt["UNK"])
+            return torch.LongTensor(edge_index).T, torch.FloatTensor(x)
+
+    def process(self):
+        i = 0
+        data_list = []
+        for raw_path in self.raw_paths:
+            try:
+                # On linux
+                cid = int(raw_path.split("/")[-1][:-6])
+            except:
+                # On windows
+                cid = int(raw_path.split("\\")[-1][:-6])
+            edge_index, x = self.process_graph(raw_path)
+            data = Data(x=x, edge_index=edge_index)
+            data_list.append(data)
+            i += 1
+        self.save(data_list, osp.join(self.processed_dir, "data.pt"))
+
+
 class GraphDatasetInM(InMemoryDataset):
-    def __init__(self, root, gt, split, tokenizer=None, transform=None, pre_transform=None, model_name=None):
-        self.tokenizer_name = type(tokenizer).__name__
+    def __init__(
+        self,
+        root,
+        gt,
+        split,
+        tokenizer=None,
+        transform=None,
+        pre_transform=None,
+        model_name=None,
+    ):
         self.model_name = model_name
         self.root = root
         self.gt = gt
@@ -364,12 +442,6 @@ class GraphDatasetInM(InMemoryDataset):
         i = 0
         data_list = []
         for raw_path in self.raw_paths:
-            try:
-                # On linux
-                cid = int(raw_path.split("/")[-1][:-6])
-            except:
-                # On windows
-                cid = int(raw_path.split("\\")[-1][:-6])
             edge_index, x = self.process_graph(raw_path)
             data = Data(x=x, edge_index=edge_index)
             data_list.append(data)

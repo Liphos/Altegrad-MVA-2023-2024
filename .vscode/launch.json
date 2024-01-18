@@ -5,13 +5,23 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "name": "Python: BioBert",
             "type": "python",
             "request": "launch",
             "program": "training.py",
             "console": "integratedTerminal",
             "justMyCode": true,
-            "args": ["configs/bio_bert.yaml"]
+            "args": [
+                "configs/bio_bert.yaml"
+            ]
         }
     ]
 }
