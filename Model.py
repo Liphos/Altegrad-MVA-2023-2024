@@ -31,10 +31,18 @@ class GraphEncoder(nn.Module):
             self.conv3 = GINConv(
                 create_mlp_gin(graph_hidden_channels, graph_hidden_channels)
             )
+            self.conv4 = GINConv(
+                create_mlp_gin(graph_hidden_channels, graph_hidden_channels)
+            )
+            self.conv5 = GINConv(
+                create_mlp_gin(graph_hidden_channels, graph_hidden_channels)
+            )
         elif gnn_type == "gcn":
             self.conv1 = GCNConv(num_node_features, graph_hidden_channels)
             self.conv2 = GCNConv(graph_hidden_channels, graph_hidden_channels)
             self.conv3 = GCNConv(graph_hidden_channels, graph_hidden_channels)
+            self.conv4 = GCNConv(graph_hidden_channels, graph_hidden_channels)
+            self.conv5 = GCNConv(graph_hidden_channels, graph_hidden_channels)
         else:
             raise NotImplementedError
         self.mol_hidden1 = nn.Linear(graph_hidden_channels, nhid)
@@ -49,6 +57,10 @@ class GraphEncoder(nn.Module):
         x = self.conv2(x, edge_index)
         x = x.relu()
         x = self.conv3(x, edge_index)
+        x = x.relu()
+        x = self.conv4(x, edge_index)
+        x = x.relu()
+        x = self.conv5(x, edge_index)
         x = global_mean_pool(x, batch)
         x = self.mol_hidden1(x).relu()
         x = self.mol_hidden2(x)

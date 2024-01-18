@@ -105,12 +105,11 @@ if __name__ == "__main__":
 
     print("Start training...")
     train = False
-    for i in tqdm(range(hyperparameters["nb_epochs"])):
+    for i in range(hyperparameters["nb_epochs"]):
         logging.info(f"-----EPOCH{i + 1}-----")
         model.train()
 
-        j = 0
-        for batch in tqdm(train_loader):
+        for batch in train_loader:
             input_ids, attention_mask, graph_batch = prepare_graph_batch(batch)
 
             x_graph, x_text = model(
@@ -133,17 +132,12 @@ if __name__ == "__main__":
                 losses.append(loss)
                 loss = 0
 
-            j += 1
-            if j == 120:
-                break
-
         model.eval()
         val_loss = 0
 
         text_embeddings = []
         graph_embeddings = []
 
-        j = 0
         for batch in val_loader:
             input_ids, attention_mask, graph_batch = prepare_graph_batch(batch)
             x_graph, x_text = model(
@@ -154,10 +148,6 @@ if __name__ == "__main__":
 
             text_embeddings.append(x_text.tolist())
             graph_embeddings.append(x_graph.tolist())
-
-            j += 1
-            if j == 50:
-                break
 
         text_embeddings = np.concatenate(text_embeddings)
         graph_embeddings = np.concatenate(graph_embeddings)
