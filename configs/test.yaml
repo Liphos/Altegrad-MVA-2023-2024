@@ -1,5 +1,5 @@
 model:
-  model_name: "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
+  model_name: "nlpie/distil-biobert" #"distilbert-base-uncased"
   gnn_type: "gin"
 hyperparameters:
   nb_epochs: 10

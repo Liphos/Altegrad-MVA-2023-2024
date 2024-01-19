@@ -1,5 +1,6 @@
 model:
   model_name: "distilbert-base-uncased"
+  gnn_type: "gin"
 hyperparameters:
   nb_epochs: 100
   batch_size: 64

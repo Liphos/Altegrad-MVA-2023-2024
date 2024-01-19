@@ -8,10 +8,12 @@ import time
 import numpy as np
 import torch
 import yaml
+from sklearn.metrics import label_ranking_average_precision_score
+from sklearn.metrics.pairwise import cosine_similarity
 from torch import optim
 from torch_geometric.data import DataLoader
 from tqdm import tqdm
-from transformers import AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
 
 from dataloader import GraphTextInMDataset
 from Model import get_model, load_tokenizer
@@ -25,14 +27,20 @@ def contrastive_loss(v1, v2):
     return CE(logits, labels) + CE(torch.transpose(logits, 0, 1), labels)
 
 
-def load_datasets(tokenizer: AutoTokenizer):
+def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bool):
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
     val_dataset = GraphTextInMDataset(
-        root="./data/", gt=gt, split="val", tokenizer=tokenizer
+        root="./data/", gt=gt, split="val", tokenizer=tokenizer, model_name=model_name
     )
     train_dataset = GraphTextInMDataset(
-        root="./data/", gt=gt, split="train", tokenizer=tokenizer
+        root="./data/", gt=gt, split="train", tokenizer=tokenizer, model_name=model_name
     )
+    if training_on_val:
+        print("Training on val set")
+        data_list_train = [data for data in train_dataset]
+        data_list_val = [data for data in val_dataset]
+        data_list_train.extend(data_list_val)
+        return val_dataset, data_list_train
     return val_dataset, train_dataset
 
 
@@ -60,12 +68,20 @@ if __name__ == "__main__":
     model_config = config["model"]
     hyperparameters = config["hyperparameters"]
     debug_config = config["debug"]
-
+    training_on_val = (
+        True
+        if ("training_on_val" in config["debug"] and config["debug"]["training_on_val"])
+        else False
+    )
     # Load model and datasets
     tokenizer = load_tokenizer(model_config["model_name"])
-    val_dataset, train_dataset = load_datasets(tokenizer=tokenizer)
+    val_dataset, train_dataset = load_datasets(
+        tokenizer=tokenizer,
+        model_name=model_config["model_name"],
+        training_on_val=training_on_val,
+    )
 
-    model = get_model(model_config["model_name"])
+    model = get_model(model_config["model_name"], model_config["gnn_type"])
     model.to(device)
 
     optimizer = optim.AdamW(
@@ -91,6 +107,16 @@ if __name__ == "__main__":
         level=logging.INFO,
     )
     shutil.copy(args.config_yaml, output_path + "training.yaml")
+    logging.info("device: {}".format(device))
+
+    # Load pretrained model if specified
+    if "gnn_pretrained" in model_config:
+        model.graph_encoder = torch.load(model_config["gnn_pretrained"])
+        logging.info("loaded pretrained gnn")
+
+    if "bert_pretrained" in model_config:
+        model.text_encoder.bert.load_adapter(model_config["bert_pretrained"])
+        logging.info("loaded pretrained bert")
 
     epoch = 0
     loss = 0
@@ -99,9 +125,12 @@ if __name__ == "__main__":
     time1 = time.time()
     best_validation_loss = np.inf
 
-    for i in tqdm(range(hyperparameters["nb_epochs"])):
+    print("Start training...")
+    train = False
+    for i in range(hyperparameters["nb_epochs"]):
         logging.info(f"-----EPOCH{i + 1}-----")
         model.train()
+
         for batch in train_loader:
             input_ids, attention_mask, graph_batch = prepare_graph_batch(batch)
 
@@ -124,8 +153,13 @@ if __name__ == "__main__":
                 )
                 losses.append(loss)
                 loss = 0
+
         model.eval()
         val_loss = 0
+
+        text_embeddings = []
+        graph_embeddings = []
+
         for batch in val_loader:
             input_ids, attention_mask, graph_batch = prepare_graph_batch(batch)
             x_graph, x_text = model(
@@ -133,12 +167,27 @@ if __name__ == "__main__":
             )
             current_loss = contrastive_loss(x_graph, x_text)
             val_loss += current_loss.item()
+
+            text_embeddings.append(x_text.tolist())
+            graph_embeddings.append(x_graph.tolist())
+
+        text_embeddings = np.concatenate(text_embeddings)
+        graph_embeddings = np.concatenate(graph_embeddings)
+        similarity = cosine_similarity(text_embeddings, graph_embeddings)
+
+        y_true = np.diag(np.ones(similarity.shape[0]))
+
+        score = label_ranking_average_precision_score(y_true, similarity)
+        logging.info(f"validation score: {score:.4f}")
+        print(f"validation score: {score:.4f}")
+
         logging.info(
             f"-----EPOCH + {i+1} + ----- done.  Validation loss: {val_loss / len(val_loader):.4f}"
         )
+
         if best_validation_loss > val_loss:
             best_validation_loss = val_loss
-            logging.info("validation loss improoved saving checkpoint...")
+            logging.info("validation loss improved saving checkpoint...")
             save_path = os.path.join(output_path, "model" + str(i) + ".pt")
             torch.save(
                 {

@@ -49,7 +49,7 @@ if __name__ == "__main__":
     print("loading last model...")
     checkpoint = torch.load(os.path.join(load_folder, "last_model.pt"))
 
-    model = get_model(config_model["model_name"]).to(device)
+    model = get_model(config_model["model_name"], config_model["gnn_type"]).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 
