@@ -6,6 +6,8 @@ import torch
 from torch.utils.data import Dataset as TorchDataset
 from torch_geometric.data import Data, Dataset, InMemoryDataset
 
+import numpy as np
+from tqdm import tqdm
 
 class GraphTextDataset(Dataset):
     def __init__(
@@ -342,6 +344,7 @@ class AllGraphDataset(InMemoryDataset):
             for line in f:
                 if line != "\n":
                     edge = (*map(int, line.split()),)
+                    # edge = np.array(edge)
                     edge_index.append(edge)
                 else:
                     break
@@ -352,12 +355,15 @@ class AllGraphDataset(InMemoryDataset):
                     x.append(self.gt[substruct_id])
                 else:
                     x.append(self.gt["UNK"])
-            return torch.LongTensor(edge_index).T, torch.FloatTensor(x)
+            edge_index = np.array(edge_index)
+            x = np.array(x)
+            return torch.from_numpy(edge_index).T, torch.from_numpy(x)
+            # return torch.LongTensor(edge_index).T, torch.FloatTensor(x)
 
     def process(self):
         i = 0
         data_list = []
-        for raw_path in self.raw_paths:
+        for raw_path in tqdm(self.raw_paths):
             try:
                 # On linux
                 cid = int(raw_path.split("/")[-1][:-6])
@@ -368,6 +374,8 @@ class AllGraphDataset(InMemoryDataset):
             data = Data(x=x, edge_index=edge_index)
             data_list.append(data)
             i += 1
+            if i > 10:
+                break
         self.save(data_list, osp.join(self.processed_dir, "data.pt"))
 
 
@@ -441,7 +449,7 @@ class GraphDatasetInM(InMemoryDataset):
     def process(self):
         i = 0
         data_list = []
-        for raw_path in self.raw_paths:
+        for raw_path in tqdm(self.raw_paths):
             edge_index, x = self.process_graph(raw_path)
             data = Data(x=x, edge_index=edge_index)
             data_list.append(data)
