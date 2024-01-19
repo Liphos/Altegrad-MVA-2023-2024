@@ -1,0 +1,12 @@
+model:
+  model_name: "nlpie/distil-biobert"
+  gnn_type: "gin"
+  gnn_pretrained: "graph_models/graph_pretrained_380.pt"
+  bert_pretrained: "text_models/checkpoint-1500"
+hyperparameters:
+  nb_epochs: 100
+  batch_size: 64
+  learning_rate: 1.e-5
+debug:
+  print_every: 50
+  training_on_val: True

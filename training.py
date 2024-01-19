@@ -13,7 +13,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from torch import optim
 from torch_geometric.data import DataLoader
 from tqdm import tqdm
-from transformers import AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
 
 from dataloader import GraphTextInMDataset
 from Model import get_model, load_tokenizer
@@ -27,7 +27,7 @@ def contrastive_loss(v1, v2):
     return CE(logits, labels) + CE(torch.transpose(logits, 0, 1), labels)
 
 
-def load_datasets(tokenizer: AutoTokenizer, model_name: str):
+def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bool):
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
     val_dataset = GraphTextInMDataset(
         root="./data/", gt=gt, split="val", tokenizer=tokenizer, model_name=model_name
@@ -35,6 +35,12 @@ def load_datasets(tokenizer: AutoTokenizer, model_name: str):
     train_dataset = GraphTextInMDataset(
         root="./data/", gt=gt, split="train", tokenizer=tokenizer, model_name=model_name
     )
+    if training_on_val:
+        print("Training on val set")
+        data_list_train = [data for data in train_dataset]
+        data_list_val = [data for data in val_dataset]
+        data_list_train.extend(data_list_val)
+        return val_dataset, data_list_train
     return val_dataset, train_dataset
 
 
@@ -62,11 +68,17 @@ if __name__ == "__main__":
     model_config = config["model"]
     hyperparameters = config["hyperparameters"]
     debug_config = config["debug"]
-
+    training_on_val = (
+        True
+        if ("training_on_val" in config["debug"] and config["debug"]["training_on_val"])
+        else False
+    )
     # Load model and datasets
     tokenizer = load_tokenizer(model_config["model_name"])
     val_dataset, train_dataset = load_datasets(
-        tokenizer=tokenizer, model_name=model_config["model_name"]
+        tokenizer=tokenizer,
+        model_name=model_config["model_name"],
+        training_on_val=training_on_val,
     )
 
     model = get_model(model_config["model_name"], model_config["gnn_type"])
@@ -95,6 +107,16 @@ if __name__ == "__main__":
         level=logging.INFO,
     )
     shutil.copy(args.config_yaml, output_path + "training.yaml")
+    logging.info("device: {}".format(device))
+
+    # Load pretrained model if specified
+    if "gnn_pretrained" in model_config:
+        model.graph_encoder = torch.load(model_config["gnn_pretrained"])
+        logging.info("loaded pretrained gnn")
+
+    if "bert_pretrained" in model_config:
+        model.text_encoder.bert.load_adapter(model_config["bert_pretrained"])
+        logging.info("loaded pretrained bert")
 
     epoch = 0
     loss = 0

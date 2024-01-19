@@ -20,7 +20,7 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "configs/bio_bert.yaml"
+                "configs/submit_distil_bio_bert.yaml"
             ]
         }
     ]

@@ -1,16 +1,16 @@
-import logging
-
 import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
 from torch_geometric.data import DataLoader
+from tqdm import tqdm
 
 from dataloader import AllGraphDataset
 from Model import get_model
+import logging
 
 
-def process_batch(batch, mask_rate: float = 0.15):
+def process_batch(batch, mask_rate:float=0.15):
     batch_len = len(batch.x)
     nb_nodes_to_mask = int(np.round(batch_len * mask_rate))
     indices = torch.randperm(batch_len, device=batch.x.device)[:nb_nodes_to_mask]
@@ -27,9 +27,7 @@ if __name__ == "__main__":
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
     dataset = AllGraphDataset(root="./data/", gt=gt)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    linear_model = nn.Sequential(
-        nn.Linear(300, 300), nn.ReLU(), nn.Linear(300, 300)
-    ).to(device)
+    linear_model = nn.Sequential(nn.Linear(300, 300), nn.ReLU(), nn.Linear(300, 300)).to(device)
     model = get_model("nlpie/distil-biobert", "gin").graph_encoder
     model.to(device)
     loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -47,7 +45,7 @@ if __name__ == "__main__":
         weight_decay=0.01,
     )
     logging.info("Start graph pretraining")
-    for epoch in range(100):
+    for epoch in tqdm(range(100)):
         total_loss = 0
         n_iter = 0
         for batch in loader:
@@ -62,7 +60,7 @@ if __name__ == "__main__":
             optimizer_model.step()
             optimizer_linear_model.step()
             total_loss += loss.item()
-            n_iter += 1
-            if n_iter % 50 == 0:
-                logging.info(f"loss: {total_loss/n_iter}")
+            n_iter +=1
+        if epoch >0 and epoch %10 ==0:
+            torch.save(model, f"graph_pretrained_{epoch}.pt")
         logging.info(f"Epoch: {epoch}, total_loss: {total_loss/n_iter}")
