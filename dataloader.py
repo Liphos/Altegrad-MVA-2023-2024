@@ -490,3 +490,51 @@ class TextDataset(TorchDataset):
             "input_ids": encoding["input_ids"].squeeze(),
             "attention_mask": encoding["attention_mask"].squeeze(),
         }
+
+
+class PairData(Data):
+	"""
+	Utility function to return a pair of graphs in dataloader.
+	Adapted from https://pytorch-geometric.readthedocs.io/en/latest/notes/batching.html
+	"""
+
+	def __init__(self, edge_index_anchor = None, x_anchor = None, edge_index_pos = None, x_pos = None):
+		super().__init__()
+		self.edge_index_anchor = edge_index_anchor
+		self.x_anchor = x_anchor
+
+		self.edge_index_pos = edge_index_pos
+		self.x_pos = x_pos
+
+	def __inc__(self, key, value, *args, **kwargs):
+		if key == "edge_index_anchor":
+			return self.x_anchor.size(0)
+		if key == "edge_index_pos":
+			return self.x_pos.size(0)
+		else:
+			return super().__inc__(key, value, *args, **kwargs)
+
+class AugmentGraphDataset(Dataset):
+
+    def __init__(self, dataset: AllGraphDataset, transforms=None):
+        super(AugmentGraphDataset, self).__init__()
+        self.dataset = dataset
+        self.transforms = transforms
+
+    def len(self):
+        return len(self.dataset)
+
+    def get(self, idx):
+        graph_anchor = self.dataset[idx]
+        graph_positive = self.dataset[idx]
+
+        return PairData(
+            graph_anchor.edge_index, graph_anchor.x,
+            graph_positive.edge_index, graph_positive.x
+        )
+
+    def get_positive(self, anchor):
+        tmp = anchor.clone()
+        for transform in self.transforms:
+            tmp = transform(tmp)
+        return tmp

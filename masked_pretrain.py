@@ -63,7 +63,8 @@ class MaskAtom:
 
         # modify the original node feature of the masked node
         for atom_idx in masked_atom_indices:
-            data.x[atom_idx] = torch.zeros_like(data.x[atom_idx])
+            # data.x[atom_idx] = torch.zeros_like(data.x[atom_idx])
+            data.x[atom_idx] = torch.tensor([self.num_atom_type, 0])
 
         if self.mask_edge:
             # create mask edge labels by copying edge features of edges that are bonded to
