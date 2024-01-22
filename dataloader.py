@@ -526,7 +526,10 @@ class AugmentGraphDataset(Dataset):
 
     def get(self, idx):
         graph_anchor = self.dataset[idx]
-        graph_positive = self.dataset[idx]
+        graph_anchor.edge_index = graph_anchor.edge_index.to(torch.int64)
+        graph_positive = self.get_positive(graph_anchor)
+
+        # print(graph_positive)
 
         return PairData(
             graph_anchor.edge_index, graph_anchor.x,
@@ -535,6 +538,7 @@ class AugmentGraphDataset(Dataset):
 
     def get_positive(self, anchor):
         tmp = anchor.clone()
-        for transform in self.transforms:
-            tmp = transform(tmp)
+        if tmp.x.shape[0] > 6:
+            for transform in self.transforms:
+                tmp = transform(tmp)
         return tmp

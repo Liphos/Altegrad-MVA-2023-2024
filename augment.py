@@ -65,7 +65,7 @@ class RWSample:
             (default: :obj:`False`)
     """
 
-    def __init__(self, ratio=0.1, add_self_loop=False):
+    def __init__(self, ratio=0.8, add_self_loop=False):
         self.ratio = ratio
         self.add_self_loop = add_self_loop
 
