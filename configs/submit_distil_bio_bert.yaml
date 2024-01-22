@@ -2,7 +2,7 @@ model:
   model_name: "nlpie/distil-biobert"
   gnn_type: "gin"
   gnn_pretrained: "graph_models/graph_pretrained_380.pt"
-  bert_pretrained: "text_models/checkpoint-1500"
+  bert_pretrained: "text_models/checkpoint-500"
 hyperparameters:
   nb_epochs: 100
   batch_size: 64

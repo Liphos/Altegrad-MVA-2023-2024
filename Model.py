@@ -12,46 +12,74 @@ def create_mlp_gin(input_dim, output_dim):
     )
 
 
-class GraphEncoder(nn.Module):
+class GINEncoder(nn.Module):
     def __init__(
-        self, num_node_features, nout, nhid, graph_hidden_channels, gnn_type="gin"
+        self, num_node_features, nout, nhid, graph_hidden_channels, num_layers=5
     ):
+        super(GINEncoder, self).__init__()
+        self.nhid = nhid
+        self.nout = nout
+        self.relu = nn.ReLU()
+        self.ln = nn.LayerNorm((nout))
+        self.conv_layers = []
+        self.conv_layers.append(
+            GINConv(create_mlp_gin(num_node_features, graph_hidden_channels))
+        )
+        for _ in range(num_layers - 1):
+            self.conv_layers.append(
+                GINConv(create_mlp_gin(graph_hidden_channels, graph_hidden_channels))
+            )
+        self.mol_hidden1 = nn.Linear(num_layers * graph_hidden_channels, nhid)
+        self.mol_hidden2 = nn.Linear(nhid, nout)
+
+    def forward_gnn(self, graph_batch, apply_global_mean_pool=False):
+        x = graph_batch.x
+        edge_index = graph_batch.edge_index
+        batch = graph_batch.batch
+        xs = []
+        for incr, conv_layer in enumerate(self.conv_layers):
+            x = conv_layer(x, edge_index)
+            if incr < len(self.conv_layers) - 1:
+                x = x.relu()
+            if apply_global_mean_pool:
+                xs.append(global_mean_pool(x, batch))
+            else:
+                xs.append(x)
+        return xs
+
+    def forward(self, graph_batch):
+        x = graph_batch.x
+        edge_index = graph_batch.edge_index
+        batch = graph_batch.batch
+        xs = []
+        for incr, conv_layer in enumerate(self.conv_layers):
+            x = conv_layer(x, edge_index)
+            if incr < len(self.conv_layers) - 1:
+                x = x.relu()
+            xs.append(global_mean_pool(x, batch))
+        x = self.mol_hidden1(torch.cat(xs)).relu()
+        x = self.mol_hidden2(x)
+        return x
+
+
+class GraphEncoder(nn.Module):
+    def __init__(self, num_node_features, nout, nhid, graph_hidden_channels):
         super(GraphEncoder, self).__init__()
         self.nhid = nhid
         self.nout = nout
         self.relu = nn.ReLU()
         self.ln = nn.LayerNorm((nout))
-        if gnn_type == "gin":
-            self.conv1 = GINConv(
-                create_mlp_gin(num_node_features, graph_hidden_channels)
-            )
-            self.conv2 = GINConv(
-                create_mlp_gin(graph_hidden_channels, graph_hidden_channels)
-            )
-            self.conv3 = GINConv(
-                create_mlp_gin(graph_hidden_channels, graph_hidden_channels)
-            )
-            self.conv4 = GINConv(
-                create_mlp_gin(graph_hidden_channels, graph_hidden_channels)
-            )
-            self.conv5 = GINConv(
-                create_mlp_gin(graph_hidden_channels, graph_hidden_channels)
-            )
-        elif gnn_type == "gcn":
-            self.conv1 = GCNConv(num_node_features, graph_hidden_channels)
-            self.conv2 = GCNConv(graph_hidden_channels, graph_hidden_channels)
-            self.conv3 = GCNConv(graph_hidden_channels, graph_hidden_channels)
-            self.conv4 = GCNConv(graph_hidden_channels, graph_hidden_channels)
-            self.conv5 = GCNConv(graph_hidden_channels, graph_hidden_channels)
-        else:
-            raise NotImplementedError
+        self.conv1 = GCNConv(num_node_features, graph_hidden_channels)
+        self.conv2 = GCNConv(graph_hidden_channels, graph_hidden_channels)
+        self.conv3 = GCNConv(graph_hidden_channels, graph_hidden_channels)
+        self.conv4 = GCNConv(graph_hidden_channels, graph_hidden_channels)
+        self.conv5 = GCNConv(graph_hidden_channels, graph_hidden_channels)
         self.mol_hidden1 = nn.Linear(graph_hidden_channels, nhid)
         self.mol_hidden2 = nn.Linear(nhid, nout)
 
     def forward_gnn(self, graph_batch):
         x = graph_batch.x
         edge_index = graph_batch.edge_index
-        batch = graph_batch.batch
         x = self.conv1(x, edge_index)
         x = x.relu()
         x = self.conv2(x, edge_index)
@@ -95,12 +123,26 @@ class TextEncoder(nn.Module):
 
 class Model(nn.Module):
     def __init__(
-        self, model_name, num_node_features, nout, nhid, graph_hidden_channels, gnn_type
+        self,
+        model_name,
+        num_node_features,
+        nout,
+        nhid,
+        graph_hidden_channels,
+        num_layers,
+        gnn_type,
     ):
         super(Model, self).__init__()
-        self.graph_encoder = GraphEncoder(
-            num_node_features, nout, nhid, graph_hidden_channels, gnn_type=gnn_type
-        )
+        if gnn_type == "gin":
+            self.graph_encoder = GINEncoder(
+                num_node_features, nout, nhid, graph_hidden_channels, num_layers
+            )
+        elif gnn_type == "gcn":
+            self.graph_encoder = GraphEncoder(
+                num_node_features, nout, nhid, graph_hidden_channels
+            )
+        else:
+            raise NotImplementedError("GNN type unknwon")
         self.text_encoder = TextEncoder(model_name)
 
     def forward(self, graph_batch, input_ids, attention_mask):
@@ -122,6 +164,7 @@ def get_model(model_name, gnn_type):
         nout=768,
         nhid=300,
         graph_hidden_channels=300,
+        num_layers=5,
         gnn_type=gnn_type,
     )
 

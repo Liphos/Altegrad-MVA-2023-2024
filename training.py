@@ -36,7 +36,7 @@ def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bo
         root="./data/", gt=gt, split="train", tokenizer=tokenizer, model_name=model_name
     )
     if training_on_val:
-        print("Training on val set")
+        logging.info("Training on val set")
         data_list_train = [data for data in train_dataset]
         data_list_val = [data for data in val_dataset]
         data_list_train.extend(data_list_val)
@@ -81,7 +81,34 @@ if __name__ == "__main__":
         training_on_val=training_on_val,
     )
 
+    # Create log file
+    if not os.path.exists("./outputs"):
+        os.makedirs("./outputs")
+    output_path = "./outputs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "/"
+    os.makedirs(output_path)
+    logging.basicConfig(
+        filename=output_path + "log.txt",
+        format="%(asctime)s - %(message)s",
+        level=logging.INFO,
+    )
+    shutil.copy(args.config_yaml, output_path + "training.yaml")
+    logging.info("device: {}".format(device))
+
     model = get_model(model_config["model_name"], model_config["gnn_type"])
+    # Load pretrained model if specified
+    if "gnn_pretrained" in model_config:
+        try:
+            model.graph_encoder = torch.load(model_config["gnn_pretrained"])
+        except:
+            model.graph_encoder.load_state_dict(
+                torch.load(model_config["gnn_pretrained"])
+            )
+            logging.info("loaded pretrained gnn")
+
+    if "bert_pretrained" in model_config:
+        model.text_encoder.bert.from_pretrained(model_config["bert_pretrained"])
+        logging.info("loaded pretrained bert")
+    model.train()
     model.to(device)
 
     optimizer = optim.AdamW(
@@ -96,27 +123,6 @@ if __name__ == "__main__":
     train_loader = DataLoader(
         train_dataset, batch_size=hyperparameters["batch_size"], shuffle=True
     )
-    # Create log file
-    if not os.path.exists("./outputs"):
-        os.makedirs("./outputs")
-    output_path = "./outputs/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S") + "/"
-    os.makedirs(output_path)
-    logging.basicConfig(
-        filename=output_path + "log.txt",
-        format="%(asctime)s - %(message)s",
-        level=logging.INFO,
-    )
-    shutil.copy(args.config_yaml, output_path + "training.yaml")
-    logging.info("device: {}".format(device))
-
-    # Load pretrained model if specified
-    if "gnn_pretrained" in model_config:
-        model.graph_encoder = torch.load(model_config["gnn_pretrained"])
-        logging.info("loaded pretrained gnn")
-
-    if "bert_pretrained" in model_config:
-        model.text_encoder.bert.load_adapter(model_config["bert_pretrained"])
-        logging.info("loaded pretrained bert")
 
     epoch = 0
     loss = 0
