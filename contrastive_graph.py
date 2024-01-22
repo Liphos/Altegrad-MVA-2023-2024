@@ -176,6 +176,8 @@ def step(model, loader, optimizer, type='train'):
         # print(data_anchor)
         # print(data_pos)
 
+        # break
+
         readout_anchor = model(data_anchor)
         readout_pos = model(data_pos)
 

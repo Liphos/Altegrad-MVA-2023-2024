@@ -74,7 +74,8 @@ class RWSample:
 
     def do_trans(self, data):
         node_num, _ = data.x.size()
-        sub_num = int(node_num * self.ratio)
+        # Make the ration vary randomly between self.ration +- 0.1
+        sub_num = int(node_num * self.ratio * (1 + random.uniform(-0.1, 0.1)))
 
         if self.add_self_loop:
             sl = torch.tensor([[n, n] for n in range(node_num)]).t()
@@ -82,28 +83,24 @@ class RWSample:
         else:
             edge_index = data.edge_index.detach().clone()
 
-        # edge_index = edge_index.numpy()
-        idx_sub = [np.random.randint(node_num, size=1)[0]]
-        # idx_neigh = set([n for n in edge_index[1][edge_index[0]==idx_sub[0]]])
-        idx_neigh = set([n.item() for n in edge_index[1][edge_index[0] == idx_sub[0]]])
+        adj_list = [set() for _ in range(node_num)]
+        for i in range(edge_index.size(1)):
+            adj_list[edge_index[0][i].item()].add(edge_index[1][i].item())
 
-        count = 0
+        init_node = np.random.randint(node_num, size=1)[0]
+        idx_sub = set([init_node])
+        idx_neigh = adj_list[init_node]
+
         while len(idx_sub) <= sub_num:
-            count = count + 1
-            if count > node_num:
-                break
-            if len(idx_neigh) == 0:
-                break
-            sample_node = np.random.choice(list(idx_neigh))
-            if sample_node in idx_sub:
-                continue
-            idx_sub.append(sample_node)
-            # idx_neigh.union(set([n for n in edge_index[1][edge_index[0]==idx_sub[-1]]]))
-            idx_neigh.union(
-                set([n.item() for n in edge_index[1][edge_index[0] == idx_sub[-1]]])
-            )
+            if len(idx_neigh) == 0: break
 
-        idx_sub = torch.LongTensor(idx_sub).to(data.x.device)
+            sample_idx = np.random.randint(len(idx_neigh), size=1)[0]
+            sample_node = list(idx_neigh)[sample_idx]
+            idx_sub.add(sample_node)
+            idx_neigh = idx_neigh.union(adj_list[sample_node])
+            idx_neigh = idx_neigh - set(idx_sub)
+
+        idx_sub = torch.LongTensor(list(idx_sub)).to(data.x.device)
         mask_nondrop = torch.zeros_like(data.x[:, 0]).scatter_(0, idx_sub, 1.0).bool()
         edge_index, _ = subgraph(
             mask_nondrop, data.edge_index, relabel_nodes=True, num_nodes=node_num
