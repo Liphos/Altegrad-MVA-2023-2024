@@ -540,6 +540,8 @@ class AugmentGraphDataset(Dataset):
     def get_positive(self, anchor):
         tmp = anchor.clone()
         if tmp.x.shape[0] > 6:
-            for transform in self.transforms:
-                tmp = transform(tmp)
+            # Randomly select a transformation without using np.random.choice
+            choice = np.random.randint(len(self.transforms))
+            transform = self.transforms[choice]
+            tmp = transform(tmp)
         return tmp
