@@ -29,6 +29,7 @@ class GINEncoder(nn.Module):
             self.conv_layers.append(
                 GINConv(create_mlp_gin(graph_hidden_channels, graph_hidden_channels))
             )
+        self.conv_layers = nn.ModuleList(self.conv_layers)
         self.mol_hidden1 = nn.Linear(num_layers * graph_hidden_channels, nhid)
         self.mol_hidden2 = nn.Linear(nhid, nout)
 
@@ -57,7 +58,7 @@ class GINEncoder(nn.Module):
             if incr < len(self.conv_layers) - 1:
                 x = x.relu()
             xs.append(global_mean_pool(x, batch))
-        x = self.mol_hidden1(torch.cat(xs)).relu()
+        x = self.mol_hidden1(torch.cat(xs, axis=1)).relu()
         x = self.mol_hidden2(x)
         return x
 
