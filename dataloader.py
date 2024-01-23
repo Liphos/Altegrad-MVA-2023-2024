@@ -1,13 +1,13 @@
 import os
 import os.path as osp
 
+import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset as TorchDataset
 from torch_geometric.data import Data, Dataset, InMemoryDataset
-
-import numpy as np
 from tqdm import tqdm
+
 
 class GraphTextDataset(Dataset):
     def __init__(
@@ -361,7 +361,6 @@ class AllGraphDataset(InMemoryDataset):
             # return torch.LongTensor(edge_index).T, torch.FloatTensor(x)
 
     def process(self):
-        i = 0
         data_list = []
         for raw_path in tqdm(self.raw_paths):
             try:
@@ -373,9 +372,7 @@ class AllGraphDataset(InMemoryDataset):
             edge_index, x = self.process_graph(raw_path)
             data = Data(x=x, edge_index=edge_index)
             data_list.append(data)
-            i += 1
-            if i > 10:
-                break
+
         self.save(data_list, osp.join(self.processed_dir, "data.pt"))
 
 
@@ -493,29 +490,31 @@ class TextDataset(TorchDataset):
 
 
 class PairData(Data):
-	"""
-	Utility function to return a pair of graphs in dataloader.
-	Adapted from https://pytorch-geometric.readthedocs.io/en/latest/notes/batching.html
-	"""
+    """
+    Utility function to return a pair of graphs in dataloader.
+    Adapted from https://pytorch-geometric.readthedocs.io/en/latest/notes/batching.html
+    """
 
-	def __init__(self, edge_index_anchor = None, x_anchor = None, edge_index_pos = None, x_pos = None):
-		super().__init__()
-		self.edge_index_anchor = edge_index_anchor
-		self.x_anchor = x_anchor
+    def __init__(
+        self, edge_index_anchor=None, x_anchor=None, edge_index_pos=None, x_pos=None
+    ):
+        super().__init__()
+        self.edge_index_anchor = edge_index_anchor
+        self.x_anchor = x_anchor
 
-		self.edge_index_pos = edge_index_pos
-		self.x_pos = x_pos
+        self.edge_index_pos = edge_index_pos
+        self.x_pos = x_pos
 
-	def __inc__(self, key, value, *args, **kwargs):
-		if key == "edge_index_anchor":
-			return self.x_anchor.size(0)
-		if key == "edge_index_pos":
-			return self.x_pos.size(0)
-		else:
-			return super().__inc__(key, value, *args, **kwargs)
+    def __inc__(self, key, value, *args, **kwargs):
+        if key == "edge_index_anchor":
+            return self.x_anchor.size(0)
+        if key == "edge_index_pos":
+            return self.x_pos.size(0)
+        else:
+            return super().__inc__(key, value, *args, **kwargs)
+
 
 class AugmentGraphDataset(Dataset):
-
     def __init__(self, dataset: AllGraphDataset, transforms=None):
         super(AugmentGraphDataset, self).__init__()
         self.dataset = dataset
@@ -532,8 +531,10 @@ class AugmentGraphDataset(Dataset):
         # print(graph_positive)
 
         return PairData(
-            graph_anchor.edge_index, graph_anchor.x,
-            graph_positive.edge_index, graph_positive.x
+            graph_anchor.edge_index,
+            graph_anchor.x,
+            graph_positive.edge_index,
+            graph_positive.x,
         )
 
     def get_positive(self, anchor):
