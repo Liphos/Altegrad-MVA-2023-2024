@@ -3,6 +3,7 @@ data/*
 *.csv
 send_data_dgx.sh
 *.pt
+*.pth
 outputs/*
 
 # Byte-compiled / optimized / DLL files
