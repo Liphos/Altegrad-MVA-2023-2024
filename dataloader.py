@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import math
 
 import pandas as pd
 import torch
@@ -206,6 +207,7 @@ class GraphTextInMDataset(InMemoryDataset):
                 edge_index=edge_index,
                 input_ids=text_input["input_ids"],
                 attention_mask=text_input["attention_mask"],
+                description=self.description[1][cid],
             )
             data_list.append(data)
             i += 1
@@ -493,26 +495,26 @@ class TextDataset(TorchDataset):
 
 
 class PairData(Data):
-	"""
-	Utility function to return a pair of graphs in dataloader.
-	Adapted from https://pytorch-geometric.readthedocs.io/en/latest/notes/batching.html
-	"""
+    """
+    Utility function to return a pair of graphs in dataloader.
+    Adapted from https://pytorch-geometric.readthedocs.io/en/latest/notes/batching.html
+    """
 
-	def __init__(self, edge_index_anchor = None, x_anchor = None, edge_index_pos = None, x_pos = None):
-		super().__init__()
-		self.edge_index_anchor = edge_index_anchor
-		self.x_anchor = x_anchor
+    def __init__(self, edge_index_anchor = None, x_anchor = None, edge_index_pos = None, x_pos = None):
+        super().__init__()
+        self.edge_index_anchor = edge_index_anchor
+        self.x_anchor = x_anchor
 
-		self.edge_index_pos = edge_index_pos
-		self.x_pos = x_pos
+        self.edge_index_pos = edge_index_pos
+        self.x_pos = x_pos
 
-	def __inc__(self, key, value, *args, **kwargs):
-		if key == "edge_index_anchor":
-			return self.x_anchor.size(0)
-		if key == "edge_index_pos":
-			return self.x_pos.size(0)
-		else:
-			return super().__inc__(key, value, *args, **kwargs)
+    def __inc__(self, key, value, *args, **kwargs):
+        if key == "edge_index_anchor":
+            return self.x_anchor.size(0)
+        if key == "edge_index_pos":
+            return self.x_pos.size(0)
+        else:
+            return super().__inc__(key, value, *args, **kwargs)
 
 class AugmentGraphDataset(Dataset):
 
@@ -529,8 +531,6 @@ class AugmentGraphDataset(Dataset):
         graph_anchor.edge_index = graph_anchor.edge_index.to(torch.int64)
         graph_positive = self.get_positive(graph_anchor)
 
-        # print(graph_positive)
-
         return PairData(
             graph_anchor.edge_index, graph_anchor.x,
             graph_positive.edge_index, graph_positive.x
@@ -538,7 +538,124 @@ class AugmentGraphDataset(Dataset):
 
     def get_positive(self, anchor):
         tmp = anchor.clone()
+        # Get random transformation
         if tmp.x.shape[0] > 6:
-            for transform in self.transforms:
-                tmp = transform(tmp)
+            transform_idx = np.random.randint(len(self.transforms))
+            transform = self.transforms[transform_idx]
+            tmp = transform(tmp)
         return tmp
+
+class AugmentGraphTextDataset(InMemoryDataset):
+
+    def __init__(
+        self,
+        root,
+        gt,
+        split,
+        tokenizer=None,
+        transforms=None,
+        model_name=None,
+    ):
+        self.tokenizer_name = type(tokenizer).__name__
+        self.model_name = model_name
+        self.transforms = transforms
+        self.root = root
+        self.gt = gt
+        self.split = split
+        self.tokenizer = tokenizer
+        self.description = pd.read_csv(
+            os.path.join(self.root, split + "_split.tsv"), sep="\t", header=None
+        )
+        self.description = self.description.set_index(0).to_dict()
+
+        self.base_description = pd.read_csv(
+            os.path.join(self.root, split + ".tsv"), sep="\t", header=None
+        )
+        self.base_description = self.base_description.set_index(0).to_dict()
+        self.cids = list(self.base_description[1].keys())
+
+        self.idx_to_cid = {}
+        i = 0
+        for cid in self.cids:
+            self.idx_to_cid[i] = cid
+            i += 1
+        super(AugmentGraphTextDataset, self).__init__(root)
+        self.load(self.processed_paths[0])
+
+    @property
+    def raw_file_names(self):
+        return [str(cid) + ".graph" for cid in self.cids]
+
+    @property
+    def processed_file_names(self):
+        return ["data.pt"]
+
+    @property
+    def raw_dir(self) -> str:
+        return osp.join(self.root, "raw")
+
+    @property
+    def processed_dir(self) -> str:
+        return osp.join(self.root, f"full_processed_{self.model_name}/", self.split)
+
+    def download(self):
+        pass
+
+    def process_graph(self, raw_path):
+        edge_index = []
+        x = []
+        with open(raw_path, "r") as f:
+            next(f)
+            for line in f:
+                if line != "\n":
+                    edge = (*map(int, line.split()),)
+                    edge_index.append(edge)
+                else:
+                    break
+            next(f)
+            for line in f:  # get mol2vec features:
+                substruct_id = line.strip().split()[-1]
+                if substruct_id in self.gt.keys():
+                    x.append(self.gt[substruct_id])
+                else:
+                    x.append(self.gt["UNK"])
+            return torch.LongTensor(edge_index).T, torch.FloatTensor(x)
+
+    def process(self):
+        i = 0
+        data_list = []
+        for raw_path in tqdm(self.raw_paths):
+            try:
+                # On linux
+                cid = int(raw_path.split("/")[-1][:-6])
+            except:
+                # On windows
+                cid = int(raw_path.split("\\")[-1][:-6])
+            # print(cid)
+            texts = [self.description[1][cid]]
+            if isinstance(self.description[2][cid], str):
+                texts.append(self.description[2][cid])
+                texts_fed = [texts]
+            text_input = self.tokenizer(
+                texts_fed[0],
+                return_tensors="pt",
+                truncation=True,
+                max_length=256,
+                padding="max_length",
+                add_special_tokens=True,
+            )
+            edge_index, x = self.process_graph(raw_path)
+            data = Data(
+                x=x,
+                edge_index=edge_index,
+                input_ids=text_input["input_ids"],
+                attention_mask=text_input["attention_mask"],
+                description=texts
+            )
+            data_list.append(data)
+            i += 1
+
+            # print(data)
+            # if i > 10:
+            #     break
+        self.save(data_list, self.processed_paths[0])
