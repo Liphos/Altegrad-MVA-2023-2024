@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from torch_geometric.nn import GCNConv, GINConv, global_mean_pool
+from torch_geometric.nn import BatchNorm, GCNConv, GINConv, global_mean_pool
 from transformers import AutoModel, AutoTokenizer
 
 
@@ -21,7 +21,7 @@ class GINEncoder(nn.Module):
         self.nout = nout
         self.relu = nn.ReLU()
         self.ln = nn.LayerNorm((nout))
-        self.conv_layers = []
+        self.conv_layers = nn.ModuleList()
         self.conv_layers.append(
             GINConv(create_mlp_gin(num_node_features, graph_hidden_channels))
         )
@@ -29,7 +29,9 @@ class GINEncoder(nn.Module):
             self.conv_layers.append(
                 GINConv(create_mlp_gin(graph_hidden_channels, graph_hidden_channels))
             )
-        self.conv_layers = nn.ModuleList(self.conv_layers)
+        self.norm_layers = nn.ModuleList()
+        for _ in range(num_layers):
+            self.norm_layers.append(BatchNorm(graph_hidden_channels))
         self.mol_hidden1 = nn.Linear(num_layers * graph_hidden_channels, nhid)
         self.mol_hidden2 = nn.Linear(nhid, nout)
 
@@ -40,8 +42,8 @@ class GINEncoder(nn.Module):
         xs = []
         for incr, conv_layer in enumerate(self.conv_layers):
             x = conv_layer(x, edge_index)
-            if incr < len(self.conv_layers) - 1:
-                x = x.relu()
+            x = self.norm_layers[incr](x)
+            x = x.relu()
             if apply_global_mean_pool:
                 xs.append(global_mean_pool(x, batch))
             else:
@@ -55,8 +57,8 @@ class GINEncoder(nn.Module):
         xs = []
         for incr, conv_layer in enumerate(self.conv_layers):
             x = conv_layer(x, edge_index)
-            if incr < len(self.conv_layers) - 1:
-                x = x.relu()
+            x = self.norm_layers[incr](x)
+            x = x.relu()
             xs.append(global_mean_pool(x, batch))
         x = self.mol_hidden1(torch.cat(xs, axis=1)).relu()
         x = self.mol_hidden2(x)

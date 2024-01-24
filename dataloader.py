@@ -355,7 +355,7 @@ class AllGraphDataset(InMemoryDataset):
                     x.append(self.gt[substruct_id])
                 else:
                     x.append(self.gt["UNK"])
-            edge_index = np.array(edge_index)
+            edge_index = np.array(edge_index, dtype=int)
             x = np.array(x)
             return torch.from_numpy(edge_index).T, torch.from_numpy(x)
             # return torch.LongTensor(edge_index).T, torch.FloatTensor(x)

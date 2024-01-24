@@ -39,12 +39,14 @@ def get_loader():
         batch_size=batch_size,
         shuffle=True,
         follow_batch=["x_anchor", "x_pos"],
+        num_workers=16,
     )
     val_loader = DataLoader(
         test_dataset,
         batch_size=batch_size,
         shuffle=True,
         follow_batch=["x_anchor", "x_pos"],
+        num_workers=16,
     )
 
     return train_loader, val_loader
@@ -87,7 +89,6 @@ def step(model, loader, optimizer, type="train"):
 
         losses.append(loss.item())
         progress_bar.set_description(f"Loss: {loss.item():.4f}")
-        start = time.perf_counter()
 
     return np.mean(losses)
 
@@ -96,9 +97,9 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     # Hyperparameters
     decay = 0.01
-    lr = 1e-4
+    lr = 2e-4
     batch_size = 128
-    epochs = 100
+    epochs = 200
 
     train_loader, val_loader = get_loader()
     logging.info("Data loaded")
