@@ -17,7 +17,15 @@ from Model import get_model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Loss
-contrastive_loss = infoNCE()
+
+# contrastive_loss = infoNCE()
+
+CE = torch.nn.CrossEntropyLoss()
+
+def contrastive_loss(v1, v2):
+    logits = torch.matmul(v1, torch.transpose(v2, 0, 1))
+    labels = torch.arange(logits.shape[0], device=v1.device)
+    return CE(logits, labels) + CE(torch.transpose(logits, 0, 1), labels)
 
 
 def get_loader():
@@ -72,7 +80,9 @@ def step(model, loader, optimizer, type="train"):
             batch=batch.x_anchor_batch,
         )
         data_pos = Data(
-            x=batch.x_pos, edge_index=batch.edge_index_pos, batch=batch.x_pos_batch
+            x=batch.x_pos,
+            edge_index=batch.edge_index_pos,
+            batch=batch.x_pos_batch
         )
 
         readout_anchor = model(data_anchor)
@@ -125,5 +135,5 @@ if __name__ == "__main__":
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            torch.save(model, f"graph_models/{model_type}_pretrained_{epoch+1}.pt")
+            torch.save(model, f"CE_{model_type}_pretrained_{epoch+1}.pt")
             logging.info("Saved model")

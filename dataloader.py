@@ -119,9 +119,9 @@ class GraphTextInMDataset(InMemoryDataset):
         gt,
         split,
         tokenizer=None,
+        model_name=None,
         transform=None,
         pre_transform=None,
-        model_name=None,
     ):
         self.tokenizer_name = type(tokenizer).__name__
         self.model_name = model_name
@@ -157,7 +157,7 @@ class GraphTextInMDataset(InMemoryDataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f"processed_{self.model_name}/", self.split)
+        return osp.join(self.root, f"full_processed_{self.model_name}/", self.split)
 
     def download(self):
         pass
@@ -545,3 +545,117 @@ class AugmentGraphDataset(Dataset):
             transform = self.transforms[choice]
             tmp = transform(tmp)
         return tmp
+
+class AugmentGraphTextDataset(InMemoryDataset):
+
+    def __init__(
+        self,
+        root,
+        gt,
+        split,
+        tokenizer=None,
+        model_name=None,
+        transform=None,
+        pre_transform=None,
+    ):
+        self.tokenizer_name = type(tokenizer).__name__
+        self.model_name = model_name
+        self.root = root
+        self.gt = gt
+        self.split = split
+        self.tokenizer = tokenizer
+        self.description = pd.read_csv(
+            os.path.join(self.root, split + "_split.tsv"), sep="\t", header=None
+        )
+        self.description = self.description.set_index(0).to_dict()
+
+        self.base_description = pd.read_csv(
+            os.path.join(self.root, split + ".tsv"), sep="\t", header=None
+        )
+        self.base_description = self.base_description.set_index(0).to_dict()
+        self.cids = list(self.base_description[1].keys())
+
+        self.idx_to_cid = {}
+        i = 0
+        for cid in self.cids:
+            self.idx_to_cid[i] = cid
+            i += 1
+        super(AugmentGraphTextDataset, self).__init__(root, transform, pre_transform)
+        self.load(self.processed_paths[0])
+
+    @property
+    def raw_file_names(self):
+        return [str(cid) + ".graph" for cid in self.cids]
+
+    @property
+    def processed_file_names(self):
+        return ["data.pt"]
+
+    @property
+    def raw_dir(self) -> str:
+        return osp.join(self.root, "raw")
+
+    @property
+    def processed_dir(self) -> str:
+        return osp.join(self.root, f"complete_processed_{self.model_name}/", self.split)
+
+    def download(self):
+        pass
+
+    def process_graph(self, raw_path):
+        edge_index = []
+        x = []
+        with open(raw_path, "r") as f:
+            next(f)
+            for line in f:
+                if line != "\n":
+                    edge = (*map(int, line.split()),)
+                    edge_index.append(edge)
+                else:
+                    break
+            next(f)
+            for line in f:  # get mol2vec features:
+                substruct_id = line.strip().split()[-1]
+                if substruct_id in self.gt.keys():
+                    x.append(self.gt[substruct_id])
+                else:
+                    x.append(self.gt["UNK"])
+            return torch.LongTensor(edge_index).T, torch.FloatTensor(x)
+
+    def process(self):
+        i = 0
+        data_list = []
+        for raw_path in tqdm(self.raw_paths):
+            try:
+                # On linux
+                cid = int(raw_path.split("/")[-1][:-6])
+            except:
+                # On windows
+                cid = int(raw_path.split("\\")[-1][:-6])
+            # print(cid)
+            texts = [self.description[1][cid]]
+            if isinstance(self.description[2][cid], str):
+                texts.append(self.description[2][cid])
+            else:
+                texts.append(self.base_description[1][cid])
+
+            text_input = self.tokenizer(
+                texts,
+                return_tensors="pt",
+                truncation=True,
+                max_length=256,
+                padding="max_length",
+                add_special_tokens=True,
+            )
+            edge_index, x = self.process_graph(raw_path)
+            data = Data(
+                x=x,
+                edge_index=edge_index,
+                input_ids=text_input["input_ids"],
+                attention_mask=text_input["attention_mask"],
+                description=texts
+            )
+            data_list.append(data)
+            i += 1
+
+        self.save(data_list, self.processed_paths[0])
