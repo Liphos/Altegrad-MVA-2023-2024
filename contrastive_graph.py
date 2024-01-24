@@ -58,10 +58,8 @@ def step(model, loader, optimizer, type="train"):
 
     losses = []
     progress_bar = tqdm(loader)
-    start = time.perf_counter()
-    for batch in loader:
+    for batch in progress_bar:
         batch = batch.to(device)
-        print("load_batch: ", time.perf_counter() - start)
 
         # logging.info(batch)
 
@@ -76,24 +74,19 @@ def step(model, loader, optimizer, type="train"):
         data_pos = Data(
             x=batch.x_pos, edge_index=batch.edge_index_pos, batch=batch.x_pos_batch
         )
-        print("create_data: ", time.perf_counter() - start)
 
         readout_anchor = model(data_anchor)
         readout_pos = model(data_pos)
-        print("Forward pass: ", time.perf_counter() - start)
 
         loss = contrastive_loss(readout_anchor, readout_pos)
-        print("Compute loss: ", time.perf_counter() - start)
 
         if type == "train":
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        print("Backward compute: ", time.perf_counter() - start)
 
         losses.append(loss.item())
         progress_bar.set_description(f"Loss: {loss.item():.4f}")
-        print("End: ", time.perf_counter() - start)
         start = time.perf_counter()
 
     return np.mean(losses)

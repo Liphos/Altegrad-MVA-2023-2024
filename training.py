@@ -16,6 +16,7 @@ from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
 from dataloader import GraphTextInMDataset
+from losses import infoNCE
 from Model import get_model, load_tokenizer
 
 CE = torch.nn.CrossEntropyLoss()
@@ -73,6 +74,14 @@ if __name__ == "__main__":
         if ("training_on_val" in config["debug"] and config["debug"]["training_on_val"])
         else False
     )
+    if "loss" not in hyperparameters:
+        loss_function = contrastive_loss
+    else:
+        if hyperparameters["loss"] == "NCE":
+            print("Use NCE loss function")
+            loss_function = infoNCE()
+        else:
+            raise ValueError("Loss is not implemented/doesn't exist")
     # Load model and datasets
     tokenizer = load_tokenizer(model_config["model_name"])
     val_dataset, train_dataset = load_datasets(
