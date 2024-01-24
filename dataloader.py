@@ -374,8 +374,8 @@ class AllGraphDataset(InMemoryDataset):
             data = Data(x=x, edge_index=edge_index)
             data_list.append(data)
             i += 1
-            if i > 10:
-                break
+            # if i > 10:
+            #     break
         self.save(data_list, osp.join(self.processed_dir, "data.pt"))
 
 
