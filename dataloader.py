@@ -157,7 +157,7 @@ class GraphTextInMDataset(InMemoryDataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f"full_processed_{self.model_name}/", self.split)
+        return osp.join(self.root, f"processed_{self.model_name}/", self.split)
 
     def download(self):
         pass
