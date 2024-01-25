@@ -112,7 +112,7 @@ if __name__ == "__main__":
             model.graph_encoder.load_state_dict(
                 torch.load(model_config["gnn_pretrained"])
             )
-            logging.info("loaded pretrained gnn")
+        logging.info("loaded pretrained gnn")
 
     if "bert_pretrained" in model_config:
         model.text_encoder.bert.from_pretrained(model_config["bert_pretrained"])

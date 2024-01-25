@@ -22,6 +22,14 @@
             "args": [
                 "configs/submit_distil_bio_bert.yaml"
             ]
+        },
+        {
+            "name": "Python: Contrastive graph",
+            "type": "python",
+            "request": "launch",
+            "program": "contrastive_graph.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }
