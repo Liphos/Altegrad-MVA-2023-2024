@@ -6,29 +6,34 @@ import shutil
 import time
 
 import numpy as np
-from tqdm import tqdm
 import torch
 import yaml
-
 from sklearn.metrics import label_ranking_average_precision_score
 from sklearn.metrics.pairwise import cosine_similarity
-
 from torch import optim
-from torch_geometric.loader import DataLoader
 from torch_geometric.data import Data
-
+from torch_geometric.loader import DataLoader
+from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
 from augment import RWSample, UniformSample
-from dataloader import GraphTextInMDataset, AugmentGraphTextDataset
+from dataloader import AugmentGraphTextDataset, GraphTextInMDataset
 from losses import infoNCE
 from Model import get_model, load_tokenizer
 
 CE = torch.nn.CrossEntropyLoss()
 
+
 class AugmentData(Data):
     def __init__(
-        self, x, edge_index, x_augment, edge_index_augment, input_ids, attention_mask, description
+        self,
+        x,
+        edge_index,
+        x_augment,
+        edge_index_augment,
+        input_ids,
+        attention_mask,
+        description,
     ):
         super().__init__()
         self.x = x
@@ -56,7 +61,9 @@ def contrastive_loss(v1, v2):
     labels = torch.arange(logits.shape[0], device=v1.device)
     return CE(logits, labels) + CE(torch.transpose(logits, 0, 1), labels)
 
+
 transforms = [RWSample(), UniformSample()]
+
 
 def transform_augment(sample):
     tmp = sample.clone()
@@ -66,18 +73,16 @@ def transform_augment(sample):
         tmp = transform(tmp)
 
     data = AugmentData(
-        x = sample.x,
-        edge_index = sample.edge_index,
-
-        x_augment = tmp.x,
-        edge_index_augment = tmp.edge_index,
-
-        input_ids = sample.input_ids,
-        attention_mask = sample.attention_mask,
-
-        description = sample.description,
+        x=sample.x,
+        edge_index=sample.edge_index,
+        x_augment=tmp.x,
+        edge_index_augment=tmp.edge_index,
+        input_ids=sample.input_ids,
+        attention_mask=sample.attention_mask,
+        description=sample.description,
     )
     return data
+
 
 def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bool):
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
@@ -85,13 +90,23 @@ def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bo
         root="./data/", gt=gt, split="val", tokenizer=tokenizer, model_name=model_name
     )
     train_dataset = AugmentGraphTextDataset(
-        root="./data/", gt=gt, split="train", tokenizer=tokenizer, model_name=model_name, transform=transform_augment
+        root="./data/",
+        gt=gt,
+        split="train",
+        tokenizer=tokenizer,
+        model_name=model_name,
+        transform=transform_augment,
     )
     if training_on_val:
         logging.info("Training on val set")
 
         val_dataset = AugmentGraphTextDataset(
-            root="./data/", gt=gt, split="val", tokenizer=tokenizer, model_name=model_name, transform=transform_augment
+            root="./data/",
+            gt=gt,
+            split="val",
+            tokenizer=tokenizer,
+            model_name=model_name,
+            transform=transform_augment,
         )
 
         data_list_train = [data for data in train_dataset]
@@ -159,7 +174,7 @@ if __name__ == "__main__":
             model.graph_encoder.load_state_dict(
                 torch.load(model_config["gnn_pretrained"])
             )
-            logging.info("loaded pretrained gnn")
+        logging.info("loaded pretrained gnn")
 
     if "bert_pretrained" in model_config:
         model.text_encoder.bert.from_pretrained(model_config["bert_pretrained"])
@@ -173,11 +188,23 @@ if __name__ == "__main__":
         betas=(0.9, 0.999),
         weight_decay=0.01,
     )
+    scheduler = optim.lr_scheduler.StepLR(
+        optimizer=optimizer,
+        step_size=hyperparameters["step_size"],
+        gamma=hyperparameters["gamma"],
+    )
     val_loader = DataLoader(
-        val_dataset, batch_size=hyperparameters["batch_size"], shuffle=True
+        val_dataset,
+        batch_size=hyperparameters["batch_size"],
+        shuffle=True,
+        num_workers=16,
     )
     train_loader = DataLoader(
-        train_dataset, batch_size=hyperparameters["batch_size"], shuffle=True, follow_batch=["x", "x_augment"],
+        train_dataset,
+        batch_size=hyperparameters["batch_size"],
+        shuffle=True,
+        follow_batch=["x", "x_augment"],
+        num_workers=16,
     )
 
     epoch = 0
@@ -193,10 +220,15 @@ if __name__ == "__main__":
         logging.info(f"-----EPOCH{i + 1}-----")
         model.train()
 
-        for batch in tqdm(train_loader):
-
-            graph_original = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch)
-            graph_augment = Data(x=batch.x_augment, edge_index=batch.edge_index_augment, batch=batch.x_augment_batch)
+        for batch in train_loader:
+            graph_original = Data(
+                x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch
+            )
+            graph_augment = Data(
+                x=batch.x_augment,
+                edge_index=batch.edge_index_augment,
+                batch=batch.x_augment_batch,
+            )
 
             input_ids_1 = batch.input_ids[::2]
             attention_mask_1 = batch.attention_mask[::2]
@@ -218,16 +250,22 @@ if __name__ == "__main__":
             graph_embeddings_augment = model.graph_encoder(graph_augment.to(device))
             # print('Graph embeddings augment:', graph_embeddings_augment.shape)
 
-            text_embeddings_1 = model.text_encoder(input_ids_1.to(device), attention_mask_1.to(device))
+            text_embeddings_1 = model.text_encoder(
+                input_ids_1.to(device), attention_mask_1.to(device)
+            )
             # print('Text embeddings 1:', text_embeddings_1.shape)
-            text_embeddings_2 = model.text_encoder(input_ids_2.to(device), attention_mask_2.to(device))
+            text_embeddings_2 = model.text_encoder(
+                input_ids_2.to(device), attention_mask_2.to(device)
+            )
             # print('Text embeddings 2:', text_embeddings_2.shape)
 
             loss_1 = contrastive_loss(graph_embeddings_original, text_embeddings_1)
             loss_3 = contrastive_loss(graph_embeddings_original, text_embeddings_2)
             loss_2 = contrastive_loss(graph_embeddings_augment, text_embeddings_1)
             loss_4 = contrastive_loss(graph_embeddings_augment, text_embeddings_2)
-            loss_5 = contrastive_loss(graph_embeddings_original, graph_embeddings_augment)
+            loss_5 = contrastive_loss(
+                graph_embeddings_original, graph_embeddings_augment
+            )
 
             # print('Loss 1:', loss_1)
             # print('Loss 2:', loss_2)
@@ -253,19 +291,22 @@ if __name__ == "__main__":
                 losses.append(loss)
                 loss = 0
 
+        scheduler.step()
         model.eval()
         val_loss = 0
 
         text_embeddings_list = []
         graph_embeddings_list = []
 
-        for batch in tqdm(val_loader):
+        for batch in val_loader:
             graph = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.batch)
             input_ids = batch.input_ids
             attention_mask = batch.attention_mask
 
             graph_embeddings = model.graph_encoder(graph.to(device))
-            text_embeddings = model.text_encoder(input_ids.to(device), attention_mask.to(device))
+            text_embeddings = model.text_encoder(
+                input_ids.to(device), attention_mask.to(device)
+            )
 
             current_loss = contrastive_loss(graph_embeddings, text_embeddings)
             val_loss += current_loss.item()
