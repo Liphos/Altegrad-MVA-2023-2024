@@ -134,3 +134,7 @@ dmypy.json
 text_models/
 
 graph_models/
+
+temp_venv/
+
+test.ipynb

@@ -165,7 +165,14 @@ if __name__ == "__main__":
     shutil.copy(args.config_yaml, output_path + "training.yaml")
     logging.info("device: {}".format(device))
 
-    model = get_model(model_config["model_name"], model_config["gnn_type"])
+    model = get_model(
+        model_config["model_name"],
+        model_config["gnn_type"],
+        model_config["use_lora"] if "use_lora" in model_config else False,
+    )
+    if "use_lora" in model_config and model_config["use_lora"]:
+        logging.info("using lora")
+
     # Load pretrained model if specified
     if "gnn_pretrained" in model_config:
         try:
@@ -292,6 +299,7 @@ if __name__ == "__main__":
                 loss = 0
 
         scheduler.step()
+        logging.info(f"scheduler current lr, {scheduler.get_last_lr()}")
         model.eval()
         val_loss = 0
 
