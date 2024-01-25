@@ -194,7 +194,7 @@ if __name__ == "__main__":
         model.train()
 
         train_bar = tqdm(train_loader)
-        for i, batch in enumerate(train_bar):
+        for batch in train_bar:
 
             graph_original = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch)
             graph_augment = Data(x=batch.x_augment, edge_index=batch.edge_index_augment, batch=batch.x_augment_batch)
@@ -262,7 +262,7 @@ if __name__ == "__main__":
         text_embeddings_list = []
         graph_embeddings_list = []
 
-        for j, batch in enumerate(tqdm(val_loader)):
+        for batch in tqdm(val_loader):
             graph = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.batch)
             input_ids = batch.input_ids
             attention_mask = batch.attention_mask
