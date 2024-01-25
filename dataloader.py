@@ -597,7 +597,7 @@ class AugmentGraphTextDataset(InMemoryDataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f"complete_processed_{self.model_name}/", self.split)
+        return osp.join(self.root, f"complete_processed_{self.split}_{self.model_name}/", self.split)
 
     def download(self):
         pass
@@ -637,6 +637,9 @@ class AugmentGraphTextDataset(InMemoryDataset):
             if isinstance(self.description[2][cid], str):
                 texts.append(self.description[2][cid])
             else:
+                texts.append(self.base_description[1][cid])
+
+            if self.split == "val":
                 texts.append(self.base_description[1][cid])
 
             text_input = self.tokenizer(

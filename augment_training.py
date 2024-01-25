@@ -86,7 +86,7 @@ def transform_augment(sample):
 
 def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bool):
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
-    val_dataset = GraphTextInMDataset(
+    val_dataset = AugmentGraphTextDataset(
         root="./data/", gt=gt, split="val", tokenizer=tokenizer, model_name=model_name
     )
     train_dataset = AugmentGraphTextDataset(
@@ -227,15 +227,11 @@ if __name__ == "__main__":
         logging.info(f"-----EPOCH{i + 1}-----")
         model.train()
 
-        for batch in train_loader:
-            graph_original = Data(
-                x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch
-            )
-            graph_augment = Data(
-                x=batch.x_augment,
-                edge_index=batch.edge_index_augment,
-                batch=batch.x_augment_batch,
-            )
+        train_bar = tqdm(train_loader)
+        for batch in train_bar:
+
+            graph_original = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch)
+            graph_augment = Data(x=batch.x_augment, edge_index=batch.edge_index_augment, batch=batch.x_augment_batch)
 
             input_ids_1 = batch.input_ids[::2]
             attention_mask_1 = batch.attention_mask[::2]
@@ -316,7 +312,7 @@ if __name__ == "__main__":
                 input_ids.to(device), attention_mask.to(device)
             )
 
-            current_loss = contrastive_loss(graph_embeddings, text_embeddings)
+            current_loss = contrastive_loss(graph_embeddings, text_embeddings[2::3])
             val_loss += current_loss.item()
 
             text_embeddings_list.append(text_embeddings.tolist())
@@ -324,13 +320,23 @@ if __name__ == "__main__":
 
         text_embeddings_list = np.concatenate(text_embeddings_list)
         graph_embeddings_list = np.concatenate(graph_embeddings_list)
+
         similarity = cosine_similarity(text_embeddings_list, graph_embeddings_list)
 
-        y_true = np.diag(np.ones(similarity.shape[0]))
+        y_true = np.diag(np.ones(similarity.shape[0]//3))
 
-        score = label_ranking_average_precision_score(y_true, similarity)
-        logging.info(f"validation score: {score:.4f}")
-        print(f"validation score: {score:.4f}")
+        similarity_1 = similarity[0::3]
+        similarity_2 = similarity[1::3]
+        similarity_base = similarity[2::3]
+
+        score = label_ranking_average_precision_score(y_true, similarity_base)
+        score_1 = label_ranking_average_precision_score(y_true, similarity_1)
+        score_2 = label_ranking_average_precision_score(y_true, similarity_2)
+        score_3 = label_ranking_average_precision_score(y_true, (similarity_1 + similarity_2)/2)
+        score_4 = label_ranking_average_precision_score(y_true, (similarity_base + similarity_1 + similarity_2)/3)
+
+        logging.info(f"[validation score] base: {score:.4f} | split 1: {score_1:.4f} | split 2: {score_2:.4f} | split 1+2: {score_3:.4f} | split 1+2+base: {score_4:.4f}")
+        print(f"[validation score] base: {score:.4f} | split 1: {score_1:.4f} | split 2: {score_2:.4f} | split 1+2: {score_3:.4f} | split 1+2+base: {score_4:.4f}")
 
         logging.info(
             f"-----EPOCH + {i+1} + ----- done.  Validation loss: {val_loss / len(val_loader):.4f}"
