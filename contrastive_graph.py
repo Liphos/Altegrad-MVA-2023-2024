@@ -106,7 +106,6 @@ if __name__ == "__main__":
 
     optimizer_model = optim.AdamW(model.parameters(), lr=lr, weight_decay=decay)
 
-    best_train_loss = np.isneginf()
     logging.info("Start graph pretraining")
     for epoch in range(epochs):
         logging.info(f"Epoch {epoch+1}/{epochs}")
