@@ -1,5 +1,5 @@
 import torch
-from peft import LoftQConfig, LoraConfig, get_peft_model
+# from peft import LoftQConfig, LoraConfig, get_peft_model
 from torch import nn
 from torch_geometric.nn import BatchNorm, GCNConv, GINConv, global_mean_pool
 from transformers import AutoModel, AutoTokenizer
