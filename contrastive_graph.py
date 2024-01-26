@@ -22,6 +22,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 CE = torch.nn.CrossEntropyLoss()
 
+
 def contrastive_loss(v1, v2):
     logits = torch.matmul(v1, torch.transpose(v2, 0, 1))
     labels = torch.arange(logits.shape[0], device=v1.device)
@@ -31,15 +32,8 @@ def contrastive_loss(v1, v2):
 def get_loader():
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
     dataset = AllGraphDataset(root="./data/", gt=gt)
-    augmented_dataset = AugmentGraphDataset(
+    train_dataset = AugmentGraphDataset(
         dataset, transforms=[RWSample(), UniformSample()]
-    )
-
-    train_size = int(0.9 * len(augmented_dataset))
-    test_size = len(augmented_dataset) - train_size
-
-    train_dataset, test_dataset = torch.utils.data.random_split(
-        augmented_dataset, [train_size, test_size]
     )
 
     train_loader = DataLoader(
@@ -49,15 +43,8 @@ def get_loader():
         follow_batch=["x_anchor", "x_pos"],
         num_workers=16,
     )
-    val_loader = DataLoader(
-        test_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        follow_batch=["x_anchor", "x_pos"],
-        num_workers=16,
-    )
 
-    return train_loader, val_loader
+    return train_loader
 
 
 def step(model, loader, optimizer, type="train"):
@@ -82,9 +69,7 @@ def step(model, loader, optimizer, type="train"):
             batch=batch.x_anchor_batch,
         )
         data_pos = Data(
-            x=batch.x_pos,
-            edge_index=batch.edge_index_pos,
-            batch=batch.x_pos_batch
+            x=batch.x_pos, edge_index=batch.edge_index_pos, batch=batch.x_pos_batch
         )
 
         readout_anchor = model(data_anchor)
@@ -111,7 +96,7 @@ if __name__ == "__main__":
     batch_size = 128
     epochs = 200
 
-    train_loader, val_loader = get_loader()
+    train_loader = get_loader()
     logging.info("Data loaded")
 
     # Model
@@ -121,9 +106,7 @@ if __name__ == "__main__":
 
     optimizer_model = optim.AdamW(model.parameters(), lr=lr, weight_decay=decay)
 
-    best_train_loss = np.inf
-    best_val_loss = np.inf
-
+    best_train_loss = np.isneginf()
     logging.info("Start graph pretraining")
     for epoch in range(epochs):
         logging.info(f"Epoch {epoch+1}/{epochs}")
@@ -131,10 +114,5 @@ if __name__ == "__main__":
         train_loss = step(model, train_loader, optimizer_model, type="train")
         logging.info(f"Train loss: {train_loss}")
 
-        val_loss = step(model, val_loader, optimizer_model, type="val")
-        logging.info(f"Validation loss: {val_loss}")
-
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            torch.save(model, f"CE_{model_type}_pretrained_{epoch+1}.pt")
-            logging.info("Saved model")
+        torch.save(model, f"graph_models/CE_{model_type}_pretrained_{epoch+1}.pt")
+        logging.info("Saved model")
