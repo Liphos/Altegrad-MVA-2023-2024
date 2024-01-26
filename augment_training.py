@@ -17,7 +17,7 @@ from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
 from augment import RWSample, UniformSample
-from dataloader import AugmentGraphTextDataset, GraphTextInMDataset
+from dataloader import AugmentGraphTextDataset, GraphTextInMDataset, MergeDataset
 from losses import infoNCE
 from Model import get_model, load_tokenizer
 
@@ -87,7 +87,7 @@ def transform_augment(sample):
 def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bool):
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
     val_dataset = AugmentGraphTextDataset(
-        root="./data/", gt=gt, split="val", tokenizer=tokenizer, model_name=model_name
+        root="./data/", gt=gt, split="val", tokenizer=tokenizer, model_name=model_name, transform=transform_augment
     )
     train_dataset = AugmentGraphTextDataset(
         root="./data/",
@@ -100,21 +100,19 @@ def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bo
     if training_on_val:
         logging.info("Training on val set")
 
-        val_dataset = AugmentGraphTextDataset(
+        merge_val_dataset = AugmentGraphTextDataset(
             root="./data/",
             gt=gt,
-            split="val",
+            split="train_on_val",
             tokenizer=tokenizer,
             model_name=model_name,
             transform=transform_augment,
         )
 
-        data_list_train = [data for data in train_dataset]
-        data_list_val = [data for data in val_dataset]
-        data_list_train.extend(data_list_val)
-        return val_dataset, data_list_train
-    return val_dataset, train_dataset
+        merged_dataset = MergeDataset(train_dataset, merge_val_dataset)
 
+        return val_dataset, merged_dataset
+    return val_dataset, train_dataset
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -205,6 +203,7 @@ if __name__ == "__main__":
         batch_size=hyperparameters["batch_size"],
         shuffle=True,
         num_workers=16,
+        follow_batch=["x", "x_augment"],
     )
     train_loader = DataLoader(
         train_dataset,
@@ -213,6 +212,8 @@ if __name__ == "__main__":
         follow_batch=["x", "x_augment"],
         num_workers=16,
     )
+
+    print("train")
 
     epoch = 0
     loss = 0
@@ -227,9 +228,8 @@ if __name__ == "__main__":
         logging.info(f"-----EPOCH{i + 1}-----")
         model.train()
 
-        train_bar = tqdm(train_loader)
-        for batch in train_bar:
-
+        # train_bar = tqdm(train_loader)
+        for batch in train_loader:
             graph_original = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch)
             graph_augment = Data(x=batch.x_augment, edge_index=batch.edge_index_augment, batch=batch.x_augment_batch)
 
@@ -283,7 +283,6 @@ if __name__ == "__main__":
             optimizer.step()
             loss += current_loss.item()
 
-            count_iter += 1
             if count_iter % debug_config["print_every"] == 0:
                 time2 = time.time()
                 logging.info(
@@ -302,41 +301,58 @@ if __name__ == "__main__":
         text_embeddings_list = []
         graph_embeddings_list = []
 
-        for batch in val_loader:
+        for k, batch in enumerate(val_loader):
             graph = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.batch)
-            input_ids = batch.input_ids
-            attention_mask = batch.attention_mask
 
-            graph_embeddings = model.graph_encoder(graph.to(device))
+            input_ids = batch.input_ids[2::3]
+            attention_mask = batch.attention_mask[2::3]
+            input_ids_1 = batch.input_ids[::3]
+            attention_mask_1 = batch.attention_mask[::3]
+            input_ids_2 = batch.input_ids[1::3]
+            attention_mask_2 = batch.attention_mask[1::3]
+
+            graph_embeddings_original = model.graph_encoder(graph_original.to(device))
+            # print('Graph embeddings original:', graph_embeddings_original.shape)
+            graph_embeddings_augment = model.graph_encoder(graph_augment.to(device))
+            # print('Graph embeddings augment:', graph_embeddings_augment.shape)
+
             text_embeddings = model.text_encoder(
                 input_ids.to(device), attention_mask.to(device)
             )
+            text_embeddings_1 = model.text_encoder(
+                input_ids_1.to(device), attention_mask_1.to(device)
+            )
+            # print('Text embeddings 1:', text_embeddings_1.shape)
+            text_embeddings_2 = model.text_encoder(
+                input_ids_2.to(device), attention_mask_2.to(device)
+            )
+            # print('Text embeddings 2:', text_embeddings_2.shape)
 
-            current_loss = contrastive_loss(graph_embeddings, text_embeddings[2::3])
+            loss_1 = contrastive_loss(graph_embeddings_original, text_embeddings_1)
+            loss_3 = contrastive_loss(graph_embeddings_original, text_embeddings_2)
+            loss_2 = contrastive_loss(graph_embeddings_augment, text_embeddings_1)
+            loss_4 = contrastive_loss(graph_embeddings_augment, text_embeddings_2)
+            loss_5 = contrastive_loss(
+                graph_embeddings_original, graph_embeddings_augment
+            )
+
+            current_loss = loss_1 + loss_2 + loss_3 + loss_4 + loss_5
+
             val_loss += current_loss.item()
 
             text_embeddings_list.append(text_embeddings.tolist())
-            graph_embeddings_list.append(graph_embeddings.tolist())
+            graph_embeddings_list.append(graph_embeddings_original.tolist())
 
         text_embeddings_list = np.concatenate(text_embeddings_list)
         graph_embeddings_list = np.concatenate(graph_embeddings_list)
 
         similarity = cosine_similarity(text_embeddings_list, graph_embeddings_list)
 
-        y_true = np.diag(np.ones(similarity.shape[0]//3))
+        y_true = np.diag(np.ones(similarity.shape[0]))
+        score = label_ranking_average_precision_score(y_true, similarity)
 
-        similarity_1 = similarity[0::3]
-        similarity_2 = similarity[1::3]
-        similarity_base = similarity[2::3]
-
-        score = label_ranking_average_precision_score(y_true, similarity_base)
-        score_1 = label_ranking_average_precision_score(y_true, similarity_1)
-        score_2 = label_ranking_average_precision_score(y_true, similarity_2)
-        score_3 = label_ranking_average_precision_score(y_true, (similarity_1 + similarity_2)/2)
-        score_4 = label_ranking_average_precision_score(y_true, (similarity_base + similarity_1 + similarity_2)/3)
-
-        logging.info(f"[validation score] base: {score:.4f} | split 1: {score_1:.4f} | split 2: {score_2:.4f} | split 1+2: {score_3:.4f} | split 1+2+base: {score_4:.4f}")
-        print(f"[validation score] base: {score:.4f} | split 1: {score_1:.4f} | split 2: {score_2:.4f} | split 1+2: {score_3:.4f} | split 1+2+base: {score_4:.4f}")
+        logging.info(f"validation score: {score:.4f}")
+        print(f"validation score: {score:.4f}")
 
         logging.info(
             f"-----EPOCH + {i+1} + ----- done.  Validation loss: {val_loss / len(val_loader):.4f}"
