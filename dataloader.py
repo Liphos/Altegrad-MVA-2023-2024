@@ -546,8 +546,8 @@ class AugmentGraphDataset(Dataset):
             tmp = transform(tmp)
         return tmp
 
-class AugmentGraphTextDataset(InMemoryDataset):
 
+class AugmentGraphTextDataset(InMemoryDataset):
     def __init__(
         self,
         root,
@@ -597,7 +597,9 @@ class AugmentGraphTextDataset(InMemoryDataset):
 
     @property
     def processed_dir(self) -> str:
-        return osp.join(self.root, f"complete_processed_{self.split}_{self.model_name}/", self.split)
+        return osp.join(
+            self.root, f"complete_processed_{self.split}_{self.model_name}/", self.split
+        )
 
     def download(self):
         pass
@@ -656,7 +658,7 @@ class AugmentGraphTextDataset(InMemoryDataset):
                 edge_index=edge_index,
                 input_ids=text_input["input_ids"],
                 attention_mask=text_input["attention_mask"],
-                description=texts
+                description=texts,
             )
             data_list.append(data)
             i += 1

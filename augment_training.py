@@ -228,10 +228,15 @@ if __name__ == "__main__":
         model.train()
 
         train_bar = tqdm(train_loader)
-        for batch in train_bar:
-
-            graph_original = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch)
-            graph_augment = Data(x=batch.x_augment, edge_index=batch.edge_index_augment, batch=batch.x_augment_batch)
+        for batch in train_loader:
+            graph_original = Data(
+                x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch
+            )
+            graph_augment = Data(
+                x=batch.x_augment,
+                edge_index=batch.edge_index_augment,
+                batch=batch.x_augment_batch,
+            )
 
             input_ids_1 = batch.input_ids[::2]
             attention_mask_1 = batch.attention_mask[::2]
@@ -323,7 +328,7 @@ if __name__ == "__main__":
 
         similarity = cosine_similarity(text_embeddings_list, graph_embeddings_list)
 
-        y_true = np.diag(np.ones(similarity.shape[0]//3))
+        y_true = np.diag(np.ones(similarity.shape[0] // 3))
 
         similarity_1 = similarity[0::3]
         similarity_2 = similarity[1::3]
@@ -332,11 +337,19 @@ if __name__ == "__main__":
         score = label_ranking_average_precision_score(y_true, similarity_base)
         score_1 = label_ranking_average_precision_score(y_true, similarity_1)
         score_2 = label_ranking_average_precision_score(y_true, similarity_2)
-        score_3 = label_ranking_average_precision_score(y_true, (similarity_1 + similarity_2)/2)
-        score_4 = label_ranking_average_precision_score(y_true, (similarity_base + similarity_1 + similarity_2)/3)
+        score_3 = label_ranking_average_precision_score(
+            y_true, (similarity_1 + similarity_2) / 2
+        )
+        score_4 = label_ranking_average_precision_score(
+            y_true, (similarity_base + similarity_1 + similarity_2) / 3
+        )
 
-        logging.info(f"[validation score] base: {score:.4f} | split 1: {score_1:.4f} | split 2: {score_2:.4f} | split 1+2: {score_3:.4f} | split 1+2+base: {score_4:.4f}")
-        print(f"[validation score] base: {score:.4f} | split 1: {score_1:.4f} | split 2: {score_2:.4f} | split 1+2: {score_3:.4f} | split 1+2+base: {score_4:.4f}")
+        logging.info(
+            f"[validation score] base: {score:.4f} | split 1: {score_1:.4f} | split 2: {score_2:.4f} | split 1+2: {score_3:.4f} | split 1+2+base: {score_4:.4f}"
+        )
+        print(
+            f"[validation score] base: {score:.4f} | split 1: {score_1:.4f} | split 2: {score_2:.4f} | split 1+2: {score_3:.4f} | split 1+2+base: {score_4:.4f}"
+        )
 
         logging.info(
             f"-----EPOCH + {i+1} + ----- done.  Validation loss: {val_loss / len(val_loader):.4f}"
