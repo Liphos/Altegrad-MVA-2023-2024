@@ -664,3 +664,20 @@ class AugmentGraphTextDataset(InMemoryDataset):
             i += 1
 
         self.save(data_list, self.processed_paths[0])
+
+class MergeDataset(Dataset):
+
+    def __init__(self, ds1, ds2):
+        self.ds1 = ds1
+        self.ds2 = ds2
+
+        super(MergeDataset, self).__init__()
+
+    def len(self):
+        return len(self.ds1) + len(self.ds2)
+
+    def get(self, idx):
+        if idx < len(self.ds1):
+            return self.ds1[idx]
+        else:
+            return self.ds2[idx - len(self.ds1)]

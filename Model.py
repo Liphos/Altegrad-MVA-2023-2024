@@ -1,5 +1,4 @@
 import torch
-from peft import LoftQConfig, LoraConfig, get_peft_model
 from torch import nn
 from torch_geometric.nn import BatchNorm, GCNConv, GINConv, global_mean_pool
 from transformers import AutoModel, AutoTokenizer
@@ -117,6 +116,10 @@ class GraphEncoder(nn.Module):
 class TextEncoder(nn.Module):
     def __init__(self, model_name, use_lora=False):
         super(TextEncoder, self).__init__()
+
+        if use_lora:
+            from peft import LoftQConfig, LoraConfig, get_peft_model
+
         bert = AutoModel.from_pretrained(model_name)
         if use_lora:
             loftq_config = LoftQConfig(loftq_bits=4)
