@@ -87,7 +87,12 @@ def transform_augment(sample):
 def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bool):
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
     val_dataset = AugmentGraphTextDataset(
-        root="./data/", gt=gt, split="val", tokenizer=tokenizer, model_name=model_name, transform=transform_augment
+        root="./data/",
+        gt=gt,
+        split="val",
+        tokenizer=tokenizer,
+        model_name=model_name,
+        transform=transform_augment,
     )
     train_dataset = AugmentGraphTextDataset(
         root="./data/",
@@ -113,6 +118,7 @@ def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bo
 
         return val_dataset, merged_dataset
     return val_dataset, train_dataset
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -230,8 +236,14 @@ if __name__ == "__main__":
 
         # train_bar = tqdm(train_loader)
         for batch in train_loader:
-            graph_original = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch)
-            graph_augment = Data(x=batch.x_augment, edge_index=batch.edge_index_augment, batch=batch.x_augment_batch)
+            graph_original = Data(
+                x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch
+            )
+            graph_augment = Data(
+                x=batch.x_augment,
+                edge_index=batch.edge_index_augment,
+                batch=batch.x_augment_batch,
+            )
 
             input_ids_1 = batch.input_ids[::2]
             attention_mask_1 = batch.attention_mask[::2]
@@ -282,7 +294,7 @@ if __name__ == "__main__":
             current_loss.backward()
             optimizer.step()
             loss += current_loss.item()
-
+            count_iter += 1
             if count_iter % debug_config["print_every"] == 0:
                 time2 = time.time()
                 logging.info(

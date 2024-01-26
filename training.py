@@ -37,7 +37,7 @@ def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bo
         root="./data/", gt=gt, split="train", tokenizer=tokenizer, model_name=model_name
     )
     if training_on_val:
-        logging.info("Training on val set")
+        print("Training on val set")
         data_list_train = [data for data in train_dataset]
         data_list_val = [data for data in val_dataset]
         data_list_train.extend(data_list_val)
