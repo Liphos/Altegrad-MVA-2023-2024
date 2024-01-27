@@ -147,6 +147,8 @@ class NodeAttrMask:
         x = data.x.detach().clone()
 
         mask_num = int(node_num * self.mask_ratio)
+        if mask_num == 0:
+            return Data(x=x, edge_index=data.edge_index)
         idx_mask = torch.randperm(node_num)[:mask_num]
         rand_embeddings = torch.randint(len(self.gt_keys), size=(mask_num,))
         x[idx_mask] = torch.tensor(

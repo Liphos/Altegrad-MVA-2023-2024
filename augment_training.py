@@ -16,7 +16,7 @@ from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
-from augment import RWSample, UniformSample
+from augment import NodeAttrMask, RWSample, UniformSample
 from dataloader import AugmentGraphTextDataset, MergeDataset
 from losses import infoNCE
 from Model import get_model, load_tokenizer
@@ -62,13 +62,13 @@ def contrastive_loss(v1, v2):
     return CE(logits, labels) + CE(torch.transpose(logits, 0, 1), labels)
 
 
-transforms = [RWSample(), UniformSample()]
+transforms = [RWSample(), UniformSample(), NodeAttrMask()]
 
 
 def transform_augment(sample):
     tmp = sample.clone()
     if tmp.x.shape[0] > 6:
-        choice = np.random.randint(2)
+        choice = np.random.randint(len(transforms))
         transform = transforms[choice]
         tmp = transform(tmp)
 
