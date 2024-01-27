@@ -5,7 +5,7 @@ from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
-from augment import NodeAttrMask, RWSample, UniformSample
+from augment import EdgePerturbation, NodeAttrMask, RWSample, UniformSample
 from dataloader import AugmentGraphTextDataset, MergeDataset
 from Model import get_model, load_tokenizer
 
@@ -42,7 +42,7 @@ class AugmentData(Data):
             return super().__inc__(key, value, *args, **kwargs)
 
 
-transforms = [RWSample(), UniformSample(), NodeAttrMask()]
+transforms = [RWSample(), UniformSample(), NodeAttrMask(), EdgePerturbation()]
 
 
 def transform_augment(sample):

@@ -176,3 +176,60 @@ class NodeAttrMask:
             return Batch.from_data_list(dlist)
         elif isinstance(data, Data):
             return self.do_trans(data)
+
+
+class EdgePerturbation:
+    """
+    Edge perturbation on the given graph or batched graphs. Class objects callable via
+    method :meth:`views_fn`.
+
+    Args:
+        add (bool, optional): Set :obj:`True` if randomly add edges in a given graph.
+            (default: :obj:`True`)
+        drop (bool, optional): Set :obj:`True` if randomly drop edges in a given graph.
+            (default: :obj:`False`)
+        ratio (float, optional): Percentage of edges to add or drop. (default: :obj:`0.1`)
+    """
+
+    def __init__(self, ratio=0.1):
+        self.ratio = ratio
+
+    def __call__(self, data):
+        return self.views_fn(data)
+
+    def do_trans(self, data):
+        node_num, _ = data.x.size()
+        _, edge_num = data.edge_index.size()
+        perturb_num = int(edge_num * self.ratio)
+
+        edge_index = data.edge_index.detach().clone()
+        idx_remain = edge_index
+        idx_add = torch.tensor([]).reshape(2, -1).long()
+
+        drop_or_add = torch.rand(1).item() > 0.5
+        if drop_or_add:
+            rand_indices = torch.randperm(edge_num)[: edge_num - perturb_num]
+            idx_remain = edge_index[:, rand_indices]
+        else:
+            idx_add = torch.randint(node_num, (2, perturb_num))
+
+        new_edge_index = torch.cat((idx_remain, idx_add), dim=1)
+        new_edge_index = torch.unique(new_edge_index, dim=1)
+
+        return Data(x=data.x, edge_index=new_edge_index)
+
+    def views_fn(self, data):
+        """
+        Method to be called when :class:`EdgePerturbation` object is called.
+
+        Args:
+            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
+
+        :rtype: :class:`torch_geometric.data.Data`.
+        """
+
+        if isinstance(data, Batch):
+            dlist = [self.do_trans(d) for d in data.to_data_list()]
+            return Batch.from_data_list(dlist)
+        elif isinstance(data, Data):
+            return self.do_trans(data)
