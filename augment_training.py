@@ -16,7 +16,7 @@ from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
-from augment import RWSample, UniformSample, NodeAttrMask, EdgePerturbation
+from augment import EdgePerturbation, NodeDrop, Subgraph, AttributeMask
 from dataloader import AugmentGraphTextDataset, GraphTextInMDataset, MergeDataset
 from losses import infoNCE
 from Model import get_model, load_tokenizer
@@ -62,7 +62,7 @@ def contrastive_loss(v1, v2):
     return CE(logits, labels) + CE(torch.transpose(logits, 0, 1), labels)
 
 
-transforms = [RWSample(), UniformSample(), NodeAttrMask(mode='partial'), EdgePerturbation()]
+transforms = [NodeDrop(), Subgraph(), AttributeMask(), EdgePerturbation(ratio=0.05)]
 
 
 def transform_augment(sample):

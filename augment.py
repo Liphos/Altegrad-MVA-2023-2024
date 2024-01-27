@@ -6,26 +6,34 @@ from sklearn.preprocessing import MinMaxScaler
 from torch_geometric.utils import to_dense_adj, dense_to_sparse, subgraph
 
 
-class UniformSample:
-    """
-    Uniformly node dropping on the given graph or batched graphs.
-    Class objects callable via method :meth:`views_fn`.
-
-    Args:
-        ratio (float, optinal): Ratio of nodes to be dropped. (default: :obj:`0.1`)
-    """
+class Augment:
+    """Global class for all augmentation methods"""
 
     def __init__(self, ratio=0.1):
         self.ratio = ratio
 
     def __call__(self, data):
-        return self.views_fn(data)
+        """Call the augmentation method and differentiates between batch and single data"""
+        if isinstance(data, Batch):
+            dlist = [self.augmentation(d) for d in data.to_data_list()]
+            return Batch.from_data_list(dlist)
+        elif isinstance(data, Data):
+            return self.augmentation(data)
 
-    def do_trans(self, data):
+    def augmentation(self, data):
+        """Augmentation method to be implemented in child classes"""
+        raise NotImplementedError
+
+
+class NodeDrop(Augment):
+    """Node drop augmentation method.
+    Randomly drops a percentage of nodes from the graph.
+    """
+
+    def augmentation(self, data):
         node_num, _ = data.x.size()
-        _, edge_num = data.edge_index.size()
-
         keep_num = int(node_num * (1 - self.ratio))
+
         idx_nondrop = torch.randperm(node_num)[:keep_num]
         mask_nondrop = (
             torch.zeros_like(data.x[:, 0]).scatter_(0, idx_nondrop, 1.0).bool()
@@ -36,52 +44,16 @@ class UniformSample:
         )
         return Data(x=data.x[mask_nondrop], edge_index=edge_index)
 
-    def views_fn(self, data):
-        """
-        Method to be called when :class:`UniformSample` object is called.
 
-        Args:
-            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
-
-        :rtype: :class:`torch_geometric.data.Data`.
-        """
-
-        if isinstance(data, Batch):
-            dlist = [self.do_trans(d) for d in data.to_data_list()]
-            return Batch.from_data_list(dlist)
-        elif isinstance(data, Data):
-            return self.do_trans(data)
-
-
-class RWSample:
+class Subgraph(Augment):
+    """Subgraph augmentation method.
+    Randomly samples a subgraph of the original graph using a random walk.
+    An adjacency matrix is created to updqte the reachable neighbors with low computational cost.
     """
-    Subgraph sampling based on random walk on the given graph or batched graphs.
-    Class objects callable via method :meth:`views_fn`.
-
-    Args:
-        ratio (float, optional): Percentage of nodes to sample from the graph.
-            (default: :obj:`0.1`)
-        add_self_loop (bool, optional): Set True to add self-loop to edge_index.
-            (default: :obj:`False`)
-    """
-
-    def __init__(self, ratio=0.8, add_self_loop=False):
-        self.ratio = ratio
-        self.add_self_loop = add_self_loop
-
-    def __call__(self, data):
-        return self.views_fn(data)
-
-    def do_trans(self, data):
+    def augment(self, data):
         node_num, _ = data.x.size()
-        # Make the ration vary randomly between self.ration +- 0.1
         sub_num = int(node_num * self.ratio * (1 + random.uniform(-0.1, 0.1)))
-
-        if self.add_self_loop:
-            sl = torch.tensor([[n, n] for n in range(node_num)]).t()
-            edge_index = torch.cat((data.edge_index, sl), dim=1)
-        else:
-            edge_index = data.edge_index.detach().clone()
+        edge_index = data.edge_index.detach().clone()
 
         adj_list = [set() for _ in range(node_num)]
         for i in range(edge_index.size(1)):
@@ -92,7 +64,8 @@ class RWSample:
         idx_neigh = adj_list[init_node]
 
         while len(idx_sub) <= sub_num:
-            if len(idx_neigh) == 0: break
+            if len(idx_neigh) == 0:
+                break
 
             sample_idx = np.random.randint(len(idx_neigh), size=1)[0]
             sample_node = list(idx_neigh)[sample_idx]
@@ -107,45 +80,18 @@ class RWSample:
         )
         return Data(x=data.x[mask_nondrop], edge_index=edge_index)
 
-    def views_fn(self, data):
-        """
-        Method to be called when :class:`RWSample` object is called.
 
-        Args:
-            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
-
-        :rtype: :class:`torch_geometric.data.Data`.
-        """
-
-        if isinstance(data, Batch):
-            dlist = [self.do_trans(d) for d in data.to_data_list()]
-            return Batch.from_data_list(dlist)
-        elif isinstance(data, Data):
-            return self.do_trans(data)
-
-
-class EdgePerturbation:
-    """
-    Edge perturbation on the given graph or batched graphs. Class objects callable via
-    method :meth:`views_fn`.
-
-    Args:
-        add (bool, optional): Set :obj:`True` if randomly add edges in a given graph.
-            (default: :obj:`True`)
-        drop (bool, optional): Set :obj:`True` if randomly drop edges in a given graph.
-            (default: :obj:`False`)
-        ratio (float, optional): Percentage of edges to add or drop. (default: :obj:`0.1`)
+class EdgePerturbation(Augment):
+    """Edge perturbation augmentation method.
+    Randomly adds or removes edges from the graph.
     """
 
-    def __init__(self, add=True, drop=True, ratio=0.05):
+    def __init__(self, ratio, add=True, drop=True):
+        super().__init__(ratio)
         self.add = add
         self.drop = drop
-        self.ratio = ratio
 
-    def __call__(self, data):
-        return self.views_fn(data)
-
-    def do_trans(self, data):
+    def augmentation(self, data):
         node_num, _ = data.x.size()
         _, edge_num = data.edge_index.size()
         perturb_num = int(edge_num * self.ratio)
@@ -169,117 +115,23 @@ class EdgePerturbation:
 
         return Data(x=data.x, edge_index=new_edge_index)
 
-    def views_fn(self, data):
-        """
-        Method to be called when :class:`EdgePerturbation` object is called.
 
-        Args:
-            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
-
-        :rtype: :class:`torch_geometric.data.Data`.
-        """
-
-        if isinstance(data, Batch):
-            dlist = [self.do_trans(d) for d in data.to_data_list()]
-            return Batch.from_data_list(dlist)
-        elif isinstance(data, Data):
-            return self.do_trans(data)
-
-
-class NodeAttrMask:
-    """
-    Node attribute masking on the given graph or batched graphs.
-    Class objects callable via method :meth:`views_fn`.
-
-    Args:
-        mode (string, optinal): Masking mode with three options:
-            :obj:`"whole"`: mask all feature dimensions of the selected node with a Gaussian distribution;
-            :obj:`"partial"`: mask only selected feature dimensions with a Gaussian distribution;
-            :obj:`"onehot"`: mask all feature dimensions of the selected node with a one-hot vector.
-            (default: :obj:`"whole"`)
-        mask_ratio (float, optinal): The ratio of node attributes to be masked. (default: :obj:`0.1`)
-        mask_mean (float, optional): Mean of the Gaussian distribution to generate masking values.
-            (default: :obj:`0.5`)
-        mask_std (float, optional): Standard deviation of the distribution to generate masking values.
-            Must be non-negative. (default: :obj:`0.5`)
-    """
-
-    def __init__(
-        self,
-        mode="whole",
-        mask_ratio=0.1,
-        mask_mean=0.5,
-        mask_std=0.5,
-        return_mask=False,
-    ):
-        self.mode = mode
-        self.mask_ratio = mask_ratio
-        self.mask_mean = mask_mean
-        self.mask_std = mask_std
-        self.return_mask = return_mask
-
-    def __call__(self, data):
-        return self.views_fn(data)
-
-    def do_trans(self, data):
+class AttributeMask(Augment):
+    def augment(self, data):
         node_num, feat_dim = data.x.size()
         x = data.x.detach().clone()
 
-        if self.mode == "whole":
-            mask = torch.zeros(node_num)
-            mask_num = int(node_num * self.mask_ratio)
-            idx_mask = np.random.choice(node_num, mask_num, replace=False)
-            x[idx_mask] = torch.tensor(
-                np.random.normal(
-                    loc=self.mask_mean, scale=self.mask_std, size=(mask_num, feat_dim)
-                ),
-                dtype=torch.float32,
-            )
-            mask[idx_mask] = 1
-
-        elif self.mode == "partial":
-            mask = torch.zeros((node_num, feat_dim))
-            for i in range(node_num):
-                for j in range(feat_dim):
-                    if random.random() < self.mask_ratio:
-                        x[i][j] = torch.tensor(
-                            np.random.normal(loc=self.mask_mean, scale=self.mask_std),
-                            dtype=torch.float32,
-                        )
-                        mask[i][j] = 1
-
-        elif self.mode == "onehot":
-            mask = torch.zeros(node_num)
-            mask_num = int(node_num * self.mask_ratio)
-            idx_mask = np.random.choice(node_num, mask_num, replace=False)
-            x[idx_mask] = torch.tensor(
-                np.eye(feat_dim)[np.random.randint(0, feat_dim, size=(mask_num))],
-                dtype=torch.float32,
-            )
-            mask[idx_mask] = 1
-
-        else:
-            raise Exception(
-                "Masking mode option '{0:s}' is not available!".format(self.mode)
-            )
-
-        if self.return_mask:
-            return Data(x=x, edge_index=data.edge_index, mask=mask)
-        else:
+        mask_num = int(node_num * self.mask_ratio)
+        if mask_num == 0:
             return Data(x=x, edge_index=data.edge_index)
+        idx_mask = torch.randperm(node_num)[:mask_num]
+        rand_embeddings = torch.randint(len(self.gt_keys), size=(mask_num,))
+        x[idx_mask] = torch.tensor(
+            [
+                self.gt[self.gt_keys[rand_embedding]]
+                for rand_embedding in rand_embeddings
+            ],
+            dtype=torch.float32,
+        )
 
-    def views_fn(self, data):
-        """
-        Method to be called when :class:`NodeAttrMask` object is called.
-
-        Args:
-            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
-
-        :rtype: :class:`torch_geometric.data.Data`.
-        """
-
-        if isinstance(data, Batch):
-            dlist = [self.do_trans(d) for d in data.to_data_list()]
-            return Batch.from_data_list(dlist)
-        elif isinstance(data, Data):
-            return self.do_trans(data)
+        return Data(x=x, edge_index=data.edge_index)
