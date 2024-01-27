@@ -50,7 +50,7 @@ class Subgraph(Augment):
     Randomly samples a subgraph of the original graph using a random walk.
     An adjacency matrix is created to updqte the reachable neighbors with low computational cost.
     """
-    def augment(self, data):
+    def augmentation(self, data):
         node_num, _ = data.x.size()
         sub_num = int(node_num * self.ratio * (1 + random.uniform(-0.1, 0.1)))
         edge_index = data.edge_index.detach().clone()
@@ -88,7 +88,7 @@ class EdgePerturbation(Augment):
     Randomly adds or removes edges from the graph.
     """
 
-    def __init__(self, ratio, add=True, drop=True):
+    def __init__(self, ratio=0.05, add=True, drop=True):
         super().__init__(ratio)
         self.add = add
         self.drop = drop
@@ -119,11 +119,20 @@ class EdgePerturbation(Augment):
 
 
 class AttributeMask(Augment):
-    def augment(self, data):
-        node_num, feat_dim = data.x.size()
+    """Attribute mask augmentation method.
+    Randomly masks a percentage of node attributes with attributes from other nodes.
+    """
+
+    def __init__(self, ratio=0.1, gt=None):
+        super().__init__(ratio)
+        self.gt = gt if gt else np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
+        self.gt_keys = list(self.gt.keys())
+
+    def augmentation(self, data):
+        node_num, _ = data.x.size()
         x = data.x.detach().clone()
 
-        mask_num = int(node_num * self.mask_ratio)
+        mask_num = int(node_num * self.ratio)
         if mask_num == 0:
             return Data(x=x, edge_index=data.edge_index)
         idx_mask = torch.randperm(node_num)[:mask_num]
