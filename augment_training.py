@@ -17,7 +17,7 @@ from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
 from augment import RWSample, UniformSample
-from dataloader import AugmentGraphTextDataset, GraphTextInMDataset, MergeDataset
+from dataloader import AugmentGraphTextDataset, MergeDataset
 from losses import infoNCE
 from Model import get_model, load_tokenizer
 
@@ -314,8 +314,14 @@ if __name__ == "__main__":
         graph_embeddings_list = []
 
         for k, batch in enumerate(val_loader):
-            graph = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.batch)
-
+            graph_original = Data(
+                x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch
+            )
+            graph_augment = Data(
+                x=batch.x_augment,
+                edge_index=batch.edge_index_augment,
+                batch=batch.x_augment_batch,
+            )
             input_ids = batch.input_ids[2::3]
             attention_mask = batch.attention_mask[2::3]
             input_ids_1 = batch.input_ids[::3]

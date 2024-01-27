@@ -1,9 +1,9 @@
-import torch
 import random
+
 import numpy as np
+import torch
 from torch_geometric.data import Batch, Data
-from sklearn.preprocessing import MinMaxScaler
-from torch_geometric.utils import to_dense_adj, dense_to_sparse, subgraph
+from torch_geometric.utils import subgraph
 
 
 class UniformSample:
@@ -92,7 +92,8 @@ class RWSample:
         idx_neigh = adj_list[init_node]
 
         while len(idx_sub) <= sub_num:
-            if len(idx_neigh) == 0: break
+            if len(idx_neigh) == 0:
+                break
 
             sample_idx = np.random.randint(len(idx_neigh), size=1)[0]
             sample_node = list(idx_neigh)[sample_idx]
@@ -110,6 +111,57 @@ class RWSample:
     def views_fn(self, data):
         """
         Method to be called when :class:`RWSample` object is called.
+
+        Args:
+            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
+
+        :rtype: :class:`torch_geometric.data.Data`.
+        """
+
+        if isinstance(data, Batch):
+            dlist = [self.do_trans(d) for d in data.to_data_list()]
+            return Batch.from_data_list(dlist)
+        elif isinstance(data, Data):
+            return self.do_trans(data)
+
+
+class NodeAttrMask:
+    """
+    Node attribute masking on the given graph or batched graphs.
+    Class objects callable via method :meth:`views_fn`.
+
+    Args:
+        mask_ratio (float, optinal): The ratio of node attributes to be masked. (default: :obj:`0.1`)
+    """
+
+    def __init__(self, mask_ratio=0.1):
+        self.mask_ratio = mask_ratio
+        self.gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
+        self.gt_keys = list(self.gt.keys())
+
+    def __call__(self, data):
+        return self.views_fn(data)
+
+    def do_trans(self, data):
+        node_num, feat_dim = data.x.size()
+        x = data.x.detach().clone()
+
+        mask_num = int(node_num * self.mask_ratio)
+        idx_mask = torch.randperm(node_num)[:mask_num]
+        rand_embeddings = torch.randint(len(self.gt_keys), size=(mask_num,))
+        x[idx_mask] = torch.tensor(
+            [
+                self.gt[self.gt_keys[rand_embedding]]
+                for rand_embedding in rand_embeddings
+            ],
+            dtype=torch.float32,
+        )
+
+        return Data(x=x, edge_index=data.edge_index)
+
+    def views_fn(self, data):
+        """
+        Method to be called when :class:`NodeAttrMask` object is called.
 
         Args:
             data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
