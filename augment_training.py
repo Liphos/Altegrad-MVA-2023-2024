@@ -103,7 +103,7 @@ def load_datasets(tokenizer: AutoTokenizer, model_name: str, training_on_val: bo
         transform=transform_augment,
     )
     if training_on_val:
-        logging.info("Training on val set")
+        print("Training on val set")
 
         merge_val_dataset = AugmentGraphTextDataset(
             root="./data/",
@@ -178,18 +178,24 @@ if __name__ == "__main__":
         logging.info("using lora")
 
     # Load pretrained model if specified
-    if "gnn_pretrained" in model_config:
-        try:
-            model.graph_encoder = torch.load(model_config["gnn_pretrained"])
-        except:
-            model.graph_encoder.load_state_dict(
-                torch.load(model_config["gnn_pretrained"])
-            )
-        logging.info("loaded pretrained gnn")
+    if "model_pretrained" in model_config:
+        model.load_state_dict(
+            torch.load(model_config["model_pretrained"])["model_state_dict"]
+        )
+        logging.info("loaded pretrained model")
+    else:
+        if "gnn_pretrained" in model_config:
+            try:
+                model.graph_encoder = torch.load(model_config["gnn_pretrained"])
+            except:
+                model.graph_encoder.load_state_dict(
+                    torch.load(model_config["gnn_pretrained"])
+                )
+            logging.info("loaded pretrained gnn")
 
-    if "bert_pretrained" in model_config:
-        model.text_encoder.bert.from_pretrained(model_config["bert_pretrained"])
-        logging.info("loaded pretrained bert")
+        if "bert_pretrained" in model_config:
+            model.text_encoder.bert.from_pretrained(model_config["bert_pretrained"])
+            logging.info("loaded pretrained bert")
     model.train()
     model.to(device)
 
