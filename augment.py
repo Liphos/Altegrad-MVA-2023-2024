@@ -1,9 +1,9 @@
-import torch
 import random
+
 import numpy as np
+import torch
 from torch_geometric.data import Batch, Data
-from sklearn.preprocessing import MinMaxScaler
-from torch_geometric.utils import to_dense_adj, dense_to_sparse, subgraph
+from torch_geometric.utils import subgraph
 
 
 class Augment:
@@ -64,6 +64,8 @@ class Subgraph(Augment):
         idx_neigh = adj_list[init_node]
 
         while len(idx_sub) <= sub_num:
+            if len(idx_neigh) == 0:
+                break
             if len(idx_neigh) == 0:
                 break
 

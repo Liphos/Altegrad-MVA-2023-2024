@@ -68,7 +68,7 @@ transforms = [NodeDrop(), Subgraph(), AttributeMask(), EdgePerturbation(ratio=0.
 def transform_augment(sample):
     tmp = sample.clone()
     if tmp.x.shape[0] > 6:
-        choice = np.random.randint(2)
+        choice = np.random.randint(len(transforms))
         transform = transforms[choice]
         tmp = transform(tmp)
 
@@ -314,8 +314,14 @@ if __name__ == "__main__":
         graph_embeddings_list = []
 
         for k, batch in enumerate(val_loader):
-            graph = Data(x=batch.x, edge_index=batch.edge_index, batch=batch.batch)
-
+            graph_original = Data(
+                x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch
+            )
+            graph_augment = Data(
+                x=batch.x_augment,
+                edge_index=batch.edge_index_augment,
+                batch=batch.x_augment_batch,
+            )
             input_ids = batch.input_ids[2::3]
             attention_mask = batch.attention_mask[2::3]
             input_ids_1 = batch.input_ids[::3]
