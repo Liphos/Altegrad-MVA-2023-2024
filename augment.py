@@ -6,26 +6,34 @@ from torch_geometric.data import Batch, Data
 from torch_geometric.utils import subgraph
 
 
-class UniformSample:
-    """
-    Uniformly node dropping on the given graph or batched graphs.
-    Class objects callable via method :meth:`views_fn`.
-
-    Args:
-        ratio (float, optinal): Ratio of nodes to be dropped. (default: :obj:`0.1`)
-    """
+class Augment:
+    """Global class for all augmentation methods"""
 
     def __init__(self, ratio=0.1):
         self.ratio = ratio
 
     def __call__(self, data):
-        return self.views_fn(data)
+        """Call the augmentation method and differentiates between batch and single data"""
+        if isinstance(data, Batch):
+            dlist = [self.augmentation(d) for d in data.to_data_list()]
+            return Batch.from_data_list(dlist)
+        elif isinstance(data, Data):
+            return self.augmentation(data)
 
-    def do_trans(self, data):
+    def augmentation(self, data):
+        """Augmentation method to be implemented in child classes"""
+        raise NotImplementedError
+
+
+class NodeDrop(Augment):
+    """Node drop augmentation method.
+    Randomly drops a percentage of nodes from the graph.
+    """
+
+    def augmentation(self, data):
         node_num, _ = data.x.size()
-        _, edge_num = data.edge_index.size()
-
         keep_num = int(node_num * (1 - self.ratio))
+
         idx_nondrop = torch.randperm(node_num)[:keep_num]
         mask_nondrop = (
             torch.zeros_like(data.x[:, 0]).scatter_(0, idx_nondrop, 1.0).bool()
@@ -36,52 +44,16 @@ class UniformSample:
         )
         return Data(x=data.x[mask_nondrop], edge_index=edge_index)
 
-    def views_fn(self, data):
-        """
-        Method to be called when :class:`UniformSample` object is called.
 
-        Args:
-            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
-
-        :rtype: :class:`torch_geometric.data.Data`.
-        """
-
-        if isinstance(data, Batch):
-            dlist = [self.do_trans(d) for d in data.to_data_list()]
-            return Batch.from_data_list(dlist)
-        elif isinstance(data, Data):
-            return self.do_trans(data)
-
-
-class RWSample:
+class Subgraph(Augment):
+    """Subgraph augmentation method.
+    Randomly samples a subgraph of the original graph using a random walk.
+    An adjacency matrix is created to updqte the reachable neighbors with low computational cost.
     """
-    Subgraph sampling based on random walk on the given graph or batched graphs.
-    Class objects callable via method :meth:`views_fn`.
-
-    Args:
-        ratio (float, optional): Percentage of nodes to sample from the graph.
-            (default: :obj:`0.1`)
-        add_self_loop (bool, optional): Set True to add self-loop to edge_index.
-            (default: :obj:`False`)
-    """
-
-    def __init__(self, ratio=0.8, add_self_loop=False):
-        self.ratio = ratio
-        self.add_self_loop = add_self_loop
-
-    def __call__(self, data):
-        return self.views_fn(data)
-
-    def do_trans(self, data):
+    def augmentation(self, data):
         node_num, _ = data.x.size()
-        # Make the ration vary randomly between self.ration +- 0.1
         sub_num = int(node_num * self.ratio * (1 + random.uniform(-0.1, 0.1)))
-
-        if self.add_self_loop:
-            sl = torch.tensor([[n, n] for n in range(node_num)]).t()
-            edge_index = torch.cat((data.edge_index, sl), dim=1)
-        else:
-            edge_index = data.edge_index.detach().clone()
+        edge_index = data.edge_index.detach().clone()
 
         adj_list = [set() for _ in range(node_num)]
         for i in range(edge_index.size(1)):
@@ -92,6 +64,8 @@ class RWSample:
         idx_neigh = adj_list[init_node]
 
         while len(idx_sub) <= sub_num:
+            if len(idx_neigh) == 0:
+                break
             if len(idx_neigh) == 0:
                 break
 
@@ -108,45 +82,57 @@ class RWSample:
         )
         return Data(x=data.x[mask_nondrop], edge_index=edge_index)
 
-    def views_fn(self, data):
-        """
-        Method to be called when :class:`RWSample` object is called.
 
-        Args:
-            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
-
-        :rtype: :class:`torch_geometric.data.Data`.
-        """
-
-        if isinstance(data, Batch):
-            dlist = [self.do_trans(d) for d in data.to_data_list()]
-            return Batch.from_data_list(dlist)
-        elif isinstance(data, Data):
-            return self.do_trans(data)
-
-
-class NodeAttrMask:
-    """
-    Node attribute masking on the given graph or batched graphs.
-    Class objects callable via method :meth:`views_fn`.
-
-    Args:
-        mask_ratio (float, optinal): The ratio of node attributes to be masked. (default: :obj:`0.1`)
+class EdgePerturbation(Augment):
+    """Edge perturbation augmentation method.
+    Randomly adds or removes edges from the graph.
     """
 
-    def __init__(self, mask_ratio=0.1):
-        self.mask_ratio = mask_ratio
-        self.gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
+    def __init__(self, ratio=0.05, add=True, drop=True):
+        super().__init__(ratio)
+        self.add = add
+        self.drop = drop
+
+    def augmentation(self, data):
+        node_num, _ = data.x.size()
+        _, edge_num = data.edge_index.size()
+        perturb_num = int(edge_num * self.ratio)
+
+        edge_index = data.edge_index.detach().clone()
+        idx_remain = edge_index
+        idx_add = torch.tensor([]).reshape(2, -1).long()
+
+        if self.drop:
+            idx_remain = edge_index[
+                :, np.random.choice(edge_num, edge_num - perturb_num, replace=False)
+            ]
+
+        if self.add:
+            idx_add = torch.randint(node_num, (2, perturb_num))
+            # Remove self-loop
+            idx_add = idx_add[:, idx_add[0] != idx_add[1]]
+
+        new_edge_index = torch.cat((idx_remain, idx_add), dim=1)
+        new_edge_index = torch.unique(new_edge_index, dim=1)
+
+        return Data(x=data.x, edge_index=new_edge_index)
+
+
+class AttributeMask(Augment):
+    """Attribute mask augmentation method.
+    Randomly masks a percentage of node attributes with attributes from other nodes.
+    """
+
+    def __init__(self, ratio=0.1, gt=None):
+        super().__init__(ratio)
+        self.gt = gt if gt else np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
         self.gt_keys = list(self.gt.keys())
 
-    def __call__(self, data):
-        return self.views_fn(data)
-
-    def do_trans(self, data):
-        node_num, feat_dim = data.x.size()
+    def augmentation(self, data):
+        node_num, _ = data.x.size()
         x = data.x.detach().clone()
 
-        mask_num = int(node_num * self.mask_ratio)
+        mask_num = int(node_num * self.ratio)
         if mask_num == 0:
             return Data(x=x, edge_index=data.edge_index)
         idx_mask = torch.randperm(node_num)[:mask_num]
@@ -160,76 +146,3 @@ class NodeAttrMask:
         )
 
         return Data(x=x, edge_index=data.edge_index)
-
-    def views_fn(self, data):
-        """
-        Method to be called when :class:`NodeAttrMask` object is called.
-
-        Args:
-            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
-
-        :rtype: :class:`torch_geometric.data.Data`.
-        """
-
-        if isinstance(data, Batch):
-            dlist = [self.do_trans(d) for d in data.to_data_list()]
-            return Batch.from_data_list(dlist)
-        elif isinstance(data, Data):
-            return self.do_trans(data)
-
-
-class EdgePerturbation:
-    """
-    Edge perturbation on the given graph or batched graphs. Class objects callable via
-    method :meth:`views_fn`.
-
-    Args:
-        add (bool, optional): Set :obj:`True` if randomly add edges in a given graph.
-            (default: :obj:`True`)
-        drop (bool, optional): Set :obj:`True` if randomly drop edges in a given graph.
-            (default: :obj:`False`)
-        ratio (float, optional): Percentage of edges to add or drop. (default: :obj:`0.1`)
-    """
-
-    def __init__(self, ratio=0.1):
-        self.ratio = ratio
-
-    def __call__(self, data):
-        return self.views_fn(data)
-
-    def do_trans(self, data):
-        node_num, _ = data.x.size()
-        _, edge_num = data.edge_index.size()
-        perturb_num = int(edge_num * self.ratio)
-
-        edge_index = data.edge_index.detach().clone()
-        idx_remain = edge_index
-        idx_add = torch.tensor([]).reshape(2, -1).long()
-
-        drop_or_add = torch.rand(1).item() > 0.5
-        if drop_or_add:
-            rand_indices = torch.randperm(edge_num)[: edge_num - perturb_num]
-            idx_remain = edge_index[:, rand_indices]
-        else:
-            idx_add = torch.randint(node_num, (2, perturb_num))
-
-        new_edge_index = torch.cat((idx_remain, idx_add), dim=1)
-        new_edge_index = torch.unique(new_edge_index, dim=1)
-
-        return Data(x=data.x, edge_index=new_edge_index)
-
-    def views_fn(self, data):
-        """
-        Method to be called when :class:`EdgePerturbation` object is called.
-
-        Args:
-            data (:class:`torch_geometric.data.Data`): The input graph or batched graphs.
-
-        :rtype: :class:`torch_geometric.data.Data`.
-        """
-
-        if isinstance(data, Batch):
-            dlist = [self.do_trans(d) for d in data.to_data_list()]
-            return Batch.from_data_list(dlist)
-        elif isinstance(data, Data):
-            return self.do_trans(data)
