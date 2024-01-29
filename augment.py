@@ -50,6 +50,10 @@ class Subgraph(Augment):
     Randomly samples a subgraph of the original graph using a random walk.
     An adjacency matrix is created to updqte the reachable neighbors with low computational cost.
     """
+
+    def __init__(self, ratio=0.8):
+        self.ratio = ratio
+
     def augmentation(self, data):
         node_num, _ = data.x.size()
         sub_num = int(node_num * self.ratio * (1 + random.uniform(-0.1, 0.1)))
@@ -125,7 +129,11 @@ class AttributeMask(Augment):
 
     def __init__(self, ratio=0.1, gt=None):
         super().__init__(ratio)
-        self.gt = gt if gt else np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
+        self.gt = (
+            gt
+            if gt
+            else np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
+        )
         self.gt_keys = list(self.gt.keys())
 
     def augmentation(self, data):
