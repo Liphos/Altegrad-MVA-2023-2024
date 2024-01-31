@@ -32,7 +32,7 @@ class NodeDrop(Augment):
 
     def augmentation(self, data):
         node_num, _ = data.x.size()
-        keep_num = int(node_num * (1 - self.ratio))
+        keep_num = int(node_num * self.ratio)
 
         idx_nondrop = torch.randperm(node_num)[:keep_num]
         mask_nondrop = (
