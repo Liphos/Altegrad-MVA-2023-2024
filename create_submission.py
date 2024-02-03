@@ -49,36 +49,43 @@ if __name__ == "__main__":
     print("loading last model...")
     checkpoint = torch.load(os.path.join(load_folder, "last_model.pt"))
 
-    model = get_model(config_model["model_name"], config_model["gnn_type"]).to(device)
+    model = get_model(
+        config_model["model_name"],
+        config_model["gnn_type"],
+        graph_hidden_channels=hyperparameters["gnn_hid"],
+        num_layers=hyperparameters["gnn_layers"],
+        use_lora=config_model["use_lora"] if "use_lora" in config_model else False,
+    ).to(device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
+    with torch.no_grad():
+        graph_model = model.get_graph_encoder()
+        text_model = model.get_text_encoder()
 
-    graph_model = model.get_graph_encoder()
-    text_model = model.get_text_encoder()
+        test_loader = DataLoader(
+            test_cids_dataset, batch_size=hyperparameters["batch_size"], shuffle=False
+        )
 
-    test_loader = DataLoader(
-        test_cids_dataset, batch_size=hyperparameters["batch_size"], shuffle=False
-    )
+        graph_embeddings = []
+        for batch in test_loader:
+            for output in graph_model(batch.to(device)):
+                graph_embeddings.append(output.tolist())
 
-    graph_embeddings = []
-    for batch in test_loader:
-        for output in graph_model(batch.to(device)):
-            graph_embeddings.append(output.tolist())
+        test_text_loader = TorchDataLoader(
+            test_text_dataset, batch_size=hyperparameters["batch_size"], shuffle=False
+        )
+        text_embeddings = []
+        for batch in test_text_loader:
+            for output in text_model(
+                batch["input_ids"].to(device),
+                attention_mask=batch["attention_mask"].to(device),
+            ):
+                text_embeddings.append(output.tolist())
 
-    test_text_loader = TorchDataLoader(
-        test_text_dataset, batch_size=hyperparameters["batch_size"], shuffle=False
-    )
-    text_embeddings = []
-    for batch in test_text_loader:
-        for output in text_model(
-            batch["input_ids"].to(device),
-            attention_mask=batch["attention_mask"].to(device),
-        ):
-            text_embeddings.append(output.tolist())
-
-    similarity = cosine_similarity(text_embeddings, graph_embeddings)
+        similarity = cosine_similarity(text_embeddings, graph_embeddings)
 
     solution = pd.DataFrame(similarity)
     solution["ID"] = solution.index
     solution = solution[["ID"] + [col for col in solution.columns if col != "ID"]]
     solution.to_csv("submission.csv", index=False)
+    print("Done")

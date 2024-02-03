@@ -114,7 +114,7 @@ class GraphEncoder(nn.Module):
 
 
 class TextEncoder(nn.Module):
-    def __init__(self, model_name, use_lora=False):
+    def __init__(self, model_name, nout, use_lora=False):
         super(TextEncoder, self).__init__()
 
         if use_lora:
@@ -170,7 +170,7 @@ class Model(nn.Module):
             )
         else:
             raise NotImplementedError("GNN type unknwon")
-        self.text_encoder = TextEncoder(model_name, use_lora)
+        self.text_encoder = TextEncoder(model_name, nout, use_lora)
 
     def forward(self, graph_batch, input_ids, attention_mask):
         graph_encoded = self.graph_encoder(graph_batch)
@@ -184,14 +184,20 @@ class Model(nn.Module):
         return self.graph_encoder
 
 
-def get_model(model_name, gnn_type, use_lora=False):
+def get_model(
+    model_name,
+    gnn_type,
+    graph_hidden_channels=300,
+    num_layers=5,
+    use_lora=False,
+):
     return Model(
         model_name=model_name,
         num_node_features=300,
         nout=768,
         nhid=300,
-        graph_hidden_channels=300,
-        num_layers=5,
+        graph_hidden_channels=graph_hidden_channels,
+        num_layers=num_layers,
         gnn_type=gnn_type,
         use_lora=use_lora,
     )

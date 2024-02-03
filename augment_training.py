@@ -16,9 +16,9 @@ from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer
 
-from augment import EdgePerturbation, NodeDrop, Subgraph, AttributeMask
+from augment import AttributeMask, EdgePerturbation, NodeDrop, Subgraph
 from dataloader import AugmentGraphTextDataset, GraphTextInMDataset, MergeDataset
-from losses import infoNCE
+from losses import infoNCE, jensen_shannon
 from Model import get_model, load_tokenizer
 
 CE = torch.nn.CrossEntropyLoss()
@@ -146,6 +146,9 @@ if __name__ == "__main__":
         if hyperparameters["loss"] == "NCE":
             print("Use NCE loss function")
             loss_function = infoNCE()
+        elif hyperparameters["loss"] == "JEN":
+            print("Use Jensen")
+            loss_function = jensen_shannon()
         else:
             raise ValueError("Loss is not implemented/doesn't exist")
     # Load model and datasets
@@ -172,7 +175,9 @@ if __name__ == "__main__":
     model = get_model(
         model_config["model_name"],
         model_config["gnn_type"],
-        model_config["use_lora"] if "use_lora" in model_config else False,
+        graph_hidden_channels=hyperparameters["gnn_hid"],
+        num_layers=hyperparameters["gnn_layers"],
+        use_lora=model_config["use_lora"] if "use_lora" in model_config else False,
     )
     if "use_lora" in model_config and model_config["use_lora"]:
         logging.info("using lora")
@@ -280,13 +285,11 @@ if __name__ == "__main__":
             )
             # print('Text embeddings 2:', text_embeddings_2.shape)
 
-            loss_1 = contrastive_loss(graph_embeddings_original, text_embeddings_1)
-            loss_3 = contrastive_loss(graph_embeddings_original, text_embeddings_2)
-            loss_2 = contrastive_loss(graph_embeddings_augment, text_embeddings_1)
-            loss_4 = contrastive_loss(graph_embeddings_augment, text_embeddings_2)
-            loss_5 = contrastive_loss(
-                graph_embeddings_original, graph_embeddings_augment
-            )
+            loss_1 = loss_function(graph_embeddings_original, text_embeddings_1)
+            loss_3 = loss_function(graph_embeddings_original, text_embeddings_2)
+            loss_2 = loss_function(graph_embeddings_augment, text_embeddings_1)
+            loss_4 = loss_function(graph_embeddings_augment, text_embeddings_2)
+            loss_5 = loss_function(graph_embeddings_original, graph_embeddings_augment)
 
             # print('Loss 1:', loss_1)
             # print('Loss 2:', loss_2)
@@ -318,54 +321,56 @@ if __name__ == "__main__":
 
         text_embeddings_list = []
         graph_embeddings_list = []
+        with torch.no_grad():
+            for k, batch in enumerate(val_loader):
+                graph_original = Data(
+                    x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch
+                )
+                graph_augment = Data(
+                    x=batch.x_augment,
+                    edge_index=batch.edge_index_augment,
+                    batch=batch.x_augment_batch,
+                )
+                input_ids = batch.input_ids[2::3]
+                attention_mask = batch.attention_mask[2::3]
+                input_ids_1 = batch.input_ids[::3]
+                attention_mask_1 = batch.attention_mask[::3]
+                input_ids_2 = batch.input_ids[1::3]
+                attention_mask_2 = batch.attention_mask[1::3]
 
-        for k, batch in enumerate(val_loader):
-            graph_original = Data(
-                x=batch.x, edge_index=batch.edge_index, batch=batch.x_batch
-            )
-            graph_augment = Data(
-                x=batch.x_augment,
-                edge_index=batch.edge_index_augment,
-                batch=batch.x_augment_batch,
-            )
-            input_ids = batch.input_ids[2::3]
-            attention_mask = batch.attention_mask[2::3]
-            input_ids_1 = batch.input_ids[::3]
-            attention_mask_1 = batch.attention_mask[::3]
-            input_ids_2 = batch.input_ids[1::3]
-            attention_mask_2 = batch.attention_mask[1::3]
+                graph_embeddings_original = model.graph_encoder(
+                    graph_original.to(device)
+                )
+                # print('Graph embeddings original:', graph_embeddings_original.shape)
+                graph_embeddings_augment = model.graph_encoder(graph_augment.to(device))
+                # print('Graph embeddings augment:', graph_embeddings_augment.shape)
 
-            graph_embeddings_original = model.graph_encoder(graph_original.to(device))
-            # print('Graph embeddings original:', graph_embeddings_original.shape)
-            graph_embeddings_augment = model.graph_encoder(graph_augment.to(device))
-            # print('Graph embeddings augment:', graph_embeddings_augment.shape)
+                text_embeddings = model.text_encoder(
+                    input_ids.to(device), attention_mask.to(device)
+                )
+                text_embeddings_1 = model.text_encoder(
+                    input_ids_1.to(device), attention_mask_1.to(device)
+                )
+                # print('Text embeddings 1:', text_embeddings_1.shape)
+                text_embeddings_2 = model.text_encoder(
+                    input_ids_2.to(device), attention_mask_2.to(device)
+                )
+                # print('Text embeddings 2:', text_embeddings_2.shape)
 
-            text_embeddings = model.text_encoder(
-                input_ids.to(device), attention_mask.to(device)
-            )
-            text_embeddings_1 = model.text_encoder(
-                input_ids_1.to(device), attention_mask_1.to(device)
-            )
-            # print('Text embeddings 1:', text_embeddings_1.shape)
-            text_embeddings_2 = model.text_encoder(
-                input_ids_2.to(device), attention_mask_2.to(device)
-            )
-            # print('Text embeddings 2:', text_embeddings_2.shape)
+                loss_1 = loss_function(graph_embeddings_original, text_embeddings_1)
+                loss_3 = loss_function(graph_embeddings_original, text_embeddings_2)
+                loss_2 = loss_function(graph_embeddings_augment, text_embeddings_1)
+                loss_4 = loss_function(graph_embeddings_augment, text_embeddings_2)
+                loss_5 = loss_function(
+                    graph_embeddings_original, graph_embeddings_augment
+                )
 
-            loss_1 = contrastive_loss(graph_embeddings_original, text_embeddings_1)
-            loss_3 = contrastive_loss(graph_embeddings_original, text_embeddings_2)
-            loss_2 = contrastive_loss(graph_embeddings_augment, text_embeddings_1)
-            loss_4 = contrastive_loss(graph_embeddings_augment, text_embeddings_2)
-            loss_5 = contrastive_loss(
-                graph_embeddings_original, graph_embeddings_augment
-            )
+                current_loss = loss_1 + loss_2 + loss_3 + loss_4 + loss_5
 
-            current_loss = loss_1 + loss_2 + loss_3 + loss_4 + loss_5
+                val_loss += current_loss.item()
 
-            val_loss += current_loss.item()
-
-            text_embeddings_list.append(text_embeddings.tolist())
-            graph_embeddings_list.append(graph_embeddings_original.tolist())
+                text_embeddings_list.append(text_embeddings.tolist())
+                graph_embeddings_list.append(graph_embeddings_original.tolist())
 
         text_embeddings_list = np.concatenate(text_embeddings_list)
         graph_embeddings_list = np.concatenate(graph_embeddings_list)

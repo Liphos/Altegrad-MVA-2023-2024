@@ -8,7 +8,7 @@ from torch_geometric.data import Data
 from torch_geometric.loader import DataLoader
 from tqdm import tqdm
 
-from augment import RWSample, UniformSample
+from augment import AttributeMask, EdgePerturbation, NodeDrop, Subgraph
 from dataloader import AllGraphDataset, AugmentGraphDataset
 from losses import infoNCE
 from Model import get_model
@@ -33,7 +33,8 @@ def get_loader():
     gt = np.load("./data/token_embedding_dict.npy", allow_pickle=True)[()]
     dataset = AllGraphDataset(root="./data/", gt=gt)
     train_dataset = AugmentGraphDataset(
-        dataset, transforms=[RWSample(), UniformSample()]
+        dataset,
+        transforms=[NodeDrop(), Subgraph(), EdgePerturbation(), AttributeMask()],
     )
 
     train_loader = DataLoader(
@@ -54,8 +55,8 @@ def step(model, loader, optimizer, type="train"):
         model.eval()
 
     losses = []
-    progress_bar = tqdm(loader)
-    for batch in progress_bar:
+    # progress_bar = tqdm(loader)
+    for batch in loader:
         batch = batch.to(device)
 
         # logging.info(batch)
@@ -83,7 +84,7 @@ def step(model, loader, optimizer, type="train"):
             optimizer.step()
 
         losses.append(loss.item())
-        progress_bar.set_description(f"Loss: {loss.item():.4f}")
+        # progress_bar.set_description(f"Loss: {loss.item():.4f}")
 
     return np.mean(losses)
 
@@ -91,17 +92,25 @@ def step(model, loader, optimizer, type="train"):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     # Hyperparameters
-    decay = 0.01
+    decay = 0.0001
     lr = 2e-4
-    batch_size = 128
-    epochs = 200
+    batch_size = 64
+    epochs = 100
+    nout = 768
+    gnn_hid = 200
+    num_layers = 5
 
     train_loader = get_loader()
     logging.info("Data loaded")
 
     # Model
     model_type = "gin"
-    model = get_model("nlpie/distil-biobert", model_type).graph_encoder
+    model = get_model(
+        "nlpie/distil-biobert",
+        gnn_type=model_type,
+        graph_hidden_channels=gnn_hid,
+        num_layers=num_layers,
+    ).graph_encoder
     model.to(device)
 
     optimizer_model = optim.AdamW(model.parameters(), lr=lr, weight_decay=decay)
