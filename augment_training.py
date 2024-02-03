@@ -261,41 +261,21 @@ if __name__ == "__main__":
             input_ids_2 = batch.input_ids[1::2]
             attention_mask_2 = batch.attention_mask[1::2]
 
-            # print(tokenizer.batch_decode(input_ids_1, skip_special_tokens=True))
-            # print(tokenizer.batch_decode(input_ids_2, skip_special_tokens=True))
-
-            # print('Graph original:', graph_original)
-            # print('Graph augment:', graph_augment)
-            # print('Input ids 1:', input_ids_1.shape)
-            # print('Input ids 2:', input_ids_2.shape)
-            # print('Attention mask 1:', attention_mask_1.shape)
-            # print('Attention mask 2:', attention_mask_2.shape)
-
             graph_embeddings_original = model.graph_encoder(graph_original.to(device))
-            # print('Graph embeddings original:', graph_embeddings_original.shape)
             graph_embeddings_augment = model.graph_encoder(graph_augment.to(device))
-            # print('Graph embeddings augment:', graph_embeddings_augment.shape)
 
             text_embeddings_1 = model.text_encoder(
                 input_ids_1.to(device), attention_mask_1.to(device)
             )
-            # print('Text embeddings 1:', text_embeddings_1.shape)
             text_embeddings_2 = model.text_encoder(
                 input_ids_2.to(device), attention_mask_2.to(device)
             )
-            # print('Text embeddings 2:', text_embeddings_2.shape)
 
             loss_1 = loss_function(graph_embeddings_original, text_embeddings_1)
             loss_3 = loss_function(graph_embeddings_original, text_embeddings_2)
             loss_2 = loss_function(graph_embeddings_augment, text_embeddings_1)
             loss_4 = loss_function(graph_embeddings_augment, text_embeddings_2)
             loss_5 = loss_function(graph_embeddings_original, graph_embeddings_augment)
-
-            # print('Loss 1:', loss_1)
-            # print('Loss 2:', loss_2)
-            # print('Loss 3:', loss_3)
-            # print('Loss 4:', loss_4)
-            # print('Loss 5:', loss_5)
 
             current_loss = loss_1 + loss_2 + loss_3 + loss_4 + loss_5
 
@@ -341,9 +321,7 @@ if __name__ == "__main__":
                 graph_embeddings_original = model.graph_encoder(
                     graph_original.to(device)
                 )
-                # print('Graph embeddings original:', graph_embeddings_original.shape)
                 graph_embeddings_augment = model.graph_encoder(graph_augment.to(device))
-                # print('Graph embeddings augment:', graph_embeddings_augment.shape)
 
                 text_embeddings = model.text_encoder(
                     input_ids.to(device), attention_mask.to(device)
@@ -351,11 +329,9 @@ if __name__ == "__main__":
                 text_embeddings_1 = model.text_encoder(
                     input_ids_1.to(device), attention_mask_1.to(device)
                 )
-                # print('Text embeddings 1:', text_embeddings_1.shape)
                 text_embeddings_2 = model.text_encoder(
                     input_ids_2.to(device), attention_mask_2.to(device)
                 )
-                # print('Text embeddings 2:', text_embeddings_2.shape)
 
                 loss_1 = loss_function(graph_embeddings_original, text_embeddings_1)
                 loss_3 = loss_function(graph_embeddings_original, text_embeddings_2)

@@ -1,9 +1,15 @@
 model:
   model_name: "nlpie/distil-biobert" #"distilbert-base-uncased"
   gnn_type: "gin"
+  gnn_pretrained: "graph_models/CE_gin_pretrained_100.pt"
 hyperparameters:
-  nb_epochs: 10
-  batch_size: 16
-  learning_rate: 2.e-5
+  nb_epochs: 70
+  batch_size: 64
+  learning_rate: 4.e-5
+  step_size: 20
+  gamma: 0.5
+  gnn_layers: 6
+  gnn_hid: 512
 debug:
-  print_every: 1
+  print_every: 50
+  training_on_val: True

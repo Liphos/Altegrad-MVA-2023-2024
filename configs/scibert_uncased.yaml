@@ -1,9 +1,0 @@
-model:
-  model_name: "allenai/scibert_scivocab_uncased"
-  gnn_type: "gin"
-hyperparameters:
-  nb_epochs: 10
-  batch_size: 16
-  learning_rate: 2.e-5
-debug:
-  print_every: 1
